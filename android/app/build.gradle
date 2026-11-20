@@ -1,0 +1,38 @@
+plugins {
+    id "com.android.application"
+}
+
+def appUrl = providers.gradleProperty("appUrl").orElse("https://executive-interface-upgrade.vercel.app").get().trim()
+def parsedAppUrl
+try {
+    parsedAppUrl = java.net.URI.create(appUrl)
+} catch (IllegalArgumentException exception) {
+    throw new GradleException("appUrl must be a valid HTTPS URL", exception)
+}
+
+if (parsedAppUrl.scheme != "https" || !parsedAppUrl.host || parsedAppUrl.userInfo || parsedAppUrl.query || parsedAppUrl.fragment) {
+    throw new GradleException("appUrl must use HTTPS and must not include credentials, a query, or a fragment")
+}
+
+def escapedAppUrl = appUrl.replace("\\", "\\\\").replace("\"", "\\\"")
+def escapedAppHost = parsedAppUrl.host.replace("\\", "\\\\").replace("\"", "\\\"")
+
+android {
+    namespace "com.cybernode.console"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.cybernode.console"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+        buildConfigField "String", "APP_URL", "\"${escapedAppUrl}\""
+        buildConfigField "String", "APP_HOST", "\"${escapedAppHost}\""
+        manifestPlaceholders = [appHost: escapedAppHost]
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+}
