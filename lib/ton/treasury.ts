@@ -2,7 +2,7 @@ import "server-only"
 
 import { Address, beginCell, internal, SendMode, toNano, type MessageRelaxed } from "@ton/core"
 import { JettonMaster, JettonWallet, TonClient, WalletContractV4 } from "@ton/ton"
-import { mnemonicToPrivateKey, mnemonicValidate } from "@ton/crypto"
+import { deriveEd25519Path, keyPairFromSeed, mnemonicToPrivateKey, mnemonicValidate, pbkdf2_sha512, type KeyPair } from "@ton/crypto"
 
 import { DEFAULT_TREASURY_ADDRESS, formatAtomic, tonviewerTransactionUrl } from "@/lib/mining/config"
 
@@ -15,6 +15,13 @@ const JETTON_TRANSFER_OP = 0xf8a7ea5
 // payout can never drain the treasury. Anything else falls back to the cap.
 export const ALLOWED_GAS_TON = ["0.001", "0.002", "0.003"] as const
 const DEFAULT_GAS_TON: (typeof ALLOWED_GAS_TON)[number] = "0.003"
+
+// Standard BIP-39 seed derivation (PBKDF2-HMAC-SHA512, 2048 iterations, empty
+// passphrase) and the SLIP-0010 ed25519 account path multichain HD wallets use
+// for TON (SLIP-0044 coin type 607). TON's own mnemonic routines reject these
+// phrases, so this path lets a 12-word multichain phrase sign for the treasury.
+const BIP39_PBKDF2_ITERATIONS = 2048
+const MULTICHAIN_ACCOUNT_PATH = [44, 607, 0]
 
 /** Resolves the attached gas fee, clamped to the 0.001/0.002/0.003 TON ceiling. */
 export function readGasFeeNano() {
@@ -45,7 +52,8 @@ export function readTreasuryConfig(): TreasuryConfig {
   const mnemonicRaw = firstEnvValue("TON_TREASURY_SIGNER_MNEMONIC", "TON_TREASURY_MNEMONIC", "MASTER_TREASURY_MNEMONIC")
   const signerMnemonic = mnemonicRaw ? mnemonicRaw.split(/\s+/).filter(Boolean) : []
   const mnemonicValid = signerMnemonic.length === 24 || signerMnemonic.length === 12
-  if (signerMnemonic.length > 0 && !mnemonicValid) diagnostics.push("TON_TREASURY_SIGNER_MNEMONIC must be a 24-word (or 12-word) TON mnemonic phrase.")
+  if (signerMnemonic.length > 0 && !mnemonicValid)
+    diagnostics.push("TON_TREASURY_SIGNER_MNEMONIC must be a 24-word TON mnemonic or a 12-word BIP-39 multichain phrase.")
 
   const apiKey = firstEnvValue("TONCENTER_API_KEY")
   if (!apiKey) diagnostics.push("TONCENTER_API_KEY is required to broadcast and verify payouts on Mainnet.")
@@ -72,10 +80,55 @@ function createClient(config: TreasuryConfig) {
   return new TonClient({ endpoint: TONCENTER_JSON_RPC, apiKey: config.apiKey ?? undefined })
 }
 
-async function createSigner(config: TreasuryConfig) {
-  const keyPair = await mnemonicToPrivateKey(config.signerMnemonic)
-  const wallet = WalletContractV4.create({ workchain: 0, publicKey: keyPair.publicKey })
-  return { keyPair, wallet }
+function createTonNativeSigner(mnemonic: string[]) {
+  return mnemonicToPrivateKey(mnemonic).then((keyPair) => ({
+    keyPair,
+    wallet: WalletContractV4.create({ workchain: 0, publicKey: keyPair.publicKey }),
+  }))
+}
+
+/**
+ * Multichain signer derivation for a standard 12-word BIP-39 phrase: the BIP-39
+ * seed followed by SLIP-0010 ed25519 derivation at m/44'/607'/0'. TON's own
+ * mnemonic routines reject these phrases, so this is what lets a 12-word
+ * multichain phrase control the treasury wallet.
+ */
+async function createMultichainSigner(mnemonic: string[]) {
+  const seed = await pbkdf2_sha512(mnemonic.join(" ").normalize("NFKD"), "mnemonic", BIP39_PBKDF2_ITERATIONS, 64)
+  const keyPair = keyPairFromSeed(await deriveEd25519Path(seed, MULTICHAIN_ACCOUNT_PATH))
+  return { keyPair, wallet: WalletContractV4.create({ workchain: 0, publicKey: keyPair.publicKey }) }
+}
+
+type SignerCandidate = { label: string; keyPair: KeyPair; wallet: WalletContractV4 }
+
+/**
+ * Every derivation a treasury phrase may legitimately use — TON-native and the
+ * BIP-39/SLIP-0010 multichain path. The candidate whose derived address controls
+ * the treasury is the one used to sign; if none match, all derived addresses are
+ * reported so the mismatch is diagnosable.
+ */
+async function createSignerCandidates(config: TreasuryConfig): Promise<SignerCandidate[]> {
+  const mnemonic = config.signerMnemonic
+  if (mnemonic.length === 0) return []
+  const candidates: SignerCandidate[] = []
+  try {
+    if (await mnemonicValidate(mnemonic)) {
+      candidates.push({ label: "TON mnemonic", ...(await createTonNativeSigner(mnemonic)) })
+    }
+  } catch {
+    // fall through to the multichain derivation
+  }
+  try {
+    candidates.push({ label: "BIP-39/SLIP-0010 m/44'/607'/0'", ...(await createMultichainSigner(mnemonic)) })
+  } catch {
+    // surfaced via diagnostics when nothing controls the treasury
+  }
+  return candidates
+}
+
+function describeCandidates(candidates: SignerCandidate[]) {
+  if (candidates.length === 0) return "no signer could be derived from TON_TREASURY_SIGNER_MNEMONIC"
+  return candidates.map((candidate) => `${candidate.wallet.address.toString({ bounceable: false })} (${candidate.label})`).join(", ")
 }
 
 async function getJettonBalance(client: TonClient, masterAddress: Address, owner: Address) {
@@ -118,14 +171,15 @@ export async function getTreasuryStatus(): Promise<TreasuryStatus> {
   const treasury = Address.parse(config.treasuryAddress)
 
   try {
-    if (config.signerMnemonic.length > 0 && await mnemonicValidate(config.signerMnemonic)) {
-      const { wallet } = await createSigner(config)
-      const signerAddress = wallet.address.toString({ bounceable: false })
-      status.signerAddress = signerAddress
-      status.addressMatchesTreasury = Address.parse(signerAddress).equals(treasury)
-      if (!status.addressMatchesTreasury) {
+    const candidates = await createSignerCandidates(config)
+    if (candidates.length > 0) {
+      const match = candidates.find((candidate) => candidate.wallet.address.equals(treasury)) ?? null
+      const chosen = match ?? candidates[0]
+      status.signerAddress = chosen.wallet.address.toString({ bounceable: false })
+      status.addressMatchesTreasury = match !== null
+      if (!match) {
         status.diagnostics.push(
-          `The configured signer key controls ${signerAddress}, not the treasury address ${config.treasuryAddress}. Provide the mnemonic that controls ${config.treasuryAddress}, or run a funded signer wallet that settles to it.`,
+          `The configured TON_TREASURY_SIGNER_MNEMONIC derives ${describeCandidates(candidates)}, not the treasury address ${config.treasuryAddress}. Provide the mnemonic that controls ${config.treasuryAddress}, or run a funded signer wallet that settles to it.`,
         )
       }
     }
@@ -225,13 +279,15 @@ export async function executePayout(params: { assetCode: string; destination: st
     return { ok: false, reason: "Treasury or destination address could not be parsed as a TON address." }
   }
 
-  const { keyPair, wallet } = await createSigner(config)
-  if (!wallet.address.equals(treasury)) {
+  const candidates = await createSignerCandidates(config)
+  const signer = candidates.find((candidate) => candidate.wallet.address.equals(treasury)) ?? null
+  if (!signer) {
     return {
       ok: false,
-      reason: `Payout signer does not control the treasury address. Signer=${wallet.address.toString({ bounceable: false })} treasury=${config.treasuryAddress}. Fund and use the mnemonic for ${config.treasuryAddress}, or run a funded signer wallet that settles to it.`,
+      reason: `Payout signer does not control the treasury address. Derived ${describeCandidates(candidates)}; treasury=${config.treasuryAddress}. Fund and use the mnemonic for ${config.treasuryAddress}, or run a funded signer wallet that settles to it.`,
     }
   }
+  const { keyPair, wallet } = signer
 
   const opened = client.open(wallet)
   let messages: MessageRelaxed[]
