@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import useSWR from "swr"
 import {
   AlertTriangle, ArrowUpRight, CheckCircle2, Crown, ExternalLink, Gem, Loader2,
@@ -146,6 +146,20 @@ export function MiningConsole({
       setBusy(null)
     }
   }
+
+  // Earning engines engage immediately: once an authenticated user has a
+  // connected Mainnet wallet, the mining session self-activates without an
+  // extra click. The 600-second accumulation clock starts on this bind, so the
+  // session/AdsGram/multi-asset accrual begins the moment the user is online.
+  const autoBoundRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!userId || !walletAddress || !data) return
+    if (data.mining.walletAddress === walletAddress) return
+    if (busy === "bind" || autoBoundRef.current === walletAddress) return
+    autoBoundRef.current = walletAddress
+    void bindWallet()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, walletAddress, data, busy])
 
   const withdrawAll = async (balance: Balance) => {
     if (!mining?.walletAddress) return

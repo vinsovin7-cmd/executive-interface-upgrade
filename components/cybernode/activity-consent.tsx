@@ -3,16 +3,26 @@
 import { useEffect, useRef, useState } from "react"
 import { Activity, CheckCircle2, ShieldCheck } from "lucide-react"
 
-export function ActivityConsent({ userId, onSignIn }: { userId: string | null; onSignIn: () => void }) {
+export function ActivityConsent({ userId, autoEngage = false, onSignIn }: { userId: string | null; autoEngage?: boolean; onSignIn: () => void }) {
   const [enabled, setEnabled] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [status, setStatus] = useState<"idle" | "active" | "error">("idle")
   const lastInteractionAt = useRef(0)
   const interactionPending = useRef(false)
+  const autoEngaged = useRef(false)
 
   useEffect(() => {
     setSessionId(crypto.randomUUID())
   }, [])
+
+  // The session earning engine engages as soon as an authenticated user has a
+  // connected wallet, so accrual starts without a manual opt-in. The toggle
+  // still lets the user switch it off at any time.
+  useEffect(() => {
+    if (!autoEngage || !userId || autoEngaged.current) return
+    autoEngaged.current = true
+    setEnabled(true)
+  }, [autoEngage, userId])
 
   useEffect(() => {
     if (!enabled || !userId || !sessionId) return
@@ -79,9 +89,9 @@ export function ActivityConsent({ userId, onSignIn }: { userId: string | null; o
       <div className="activity-consent-copy">
         <span className="eyebrow">ACCOUNT ACTIVITY · OPT-IN</span>
         <h2 id="activity-consent-title">Active-session telemetry</h2>
-        <p>When enabled, authenticated, visible browser sessions record rate-limited heartbeats and coarse active time. No keystroke content, page content, or ad revenue are collected.</p>
+        <p>Active-session telemetry starts automatically once your wallet is connected for the session reward engine, then records rate-limited heartbeats and coarse active time. No keystroke content, page content, or ad revenue are collected.</p>
         <span className="activity-consent-status" role="status">
-          {status === "active" ? <><CheckCircle2 size={13} /> Recording active time for this account</> : status === "error" ? "Telemetry is temporarily unavailable; no reward or balance changes." : <><ShieldCheck size={13} /> Off until you opt in</>}
+          {status === "active" ? <><CheckCircle2 size={13} /> Recording active time for this account</> : status === "error" ? "Telemetry is temporarily unavailable; no reward or balance changes." : <><ShieldCheck size={13} /> Starts on wallet connect · off switch available</>}
         </span>
       </div>
       {userId ? (

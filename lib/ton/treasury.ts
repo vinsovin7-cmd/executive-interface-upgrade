@@ -8,9 +8,19 @@ import { DEFAULT_TREASURY_ADDRESS, formatAtomic, tonviewerTransactionUrl } from 
 
 const TONCENTER_JSON_RPC = "https://toncenter.com/api/v2/jsonRPC"
 const TONCENTER_API_V3 = "https://toncenter.com/api/v3"
-const TON_GAS_RESERVE = toNano("0.01")
-const JETTON_ATTACH = toNano("0.05")
 const JETTON_TRANSFER_OP = 0xf8a7ea5
+
+// Strict gas ceiling. Jetton (GRAM/USDT) transfers and TON payout gas may only
+// ever be attached at one of these three values — never higher — so a single
+// payout can never drain the treasury. Anything else falls back to the cap.
+export const ALLOWED_GAS_TON = ["0.001", "0.002", "0.003"] as const
+const DEFAULT_GAS_TON: (typeof ALLOWED_GAS_TON)[number] = "0.003"
+
+/** Resolves the attached gas fee, clamped to the 0.001/0.002/0.003 TON ceiling. */
+export function readGasFeeNano() {
+  const raw = (process.env.TON_JETTON_GAS_TON ?? process.env.TON_PAYOUT_GAS_TON ?? "").trim()
+  return toNano((ALLOWED_GAS_TON as readonly string[]).includes(raw) ? raw : DEFAULT_GAS_TON)
+}
 
 export type TreasuryConfig = {
   signerMnemonic: string[]
@@ -132,7 +142,7 @@ export async function getTreasuryStatus(): Promise<TreasuryStatus> {
       status.usdtBalance = formatAtomic(usdtBalance.toString(), 6)
     }
 
-    status.liquidityReady = tonBalance > TON_GAS_RESERVE && status.gramBalance !== null && status.gramBalance !== "0"
+    status.liquidityReady = tonBalance >= readGasFeeNano() && status.gramBalance !== null && status.gramBalance !== "0"
   } catch (cause) {
     status.diagnostics.push(cause instanceof Error ? cause.message : "Treasury status could not be read from Toncenter.")
   }
@@ -225,16 +235,17 @@ export async function executePayout(params: { assetCode: string; destination: st
 
   const opened = client.open(wallet)
   let messages: MessageRelaxed[]
+  const gasFee = readGasFeeNano()
 
   try {
     const tonBalance = await client.getBalance(treasury)
 
     if (params.assetCode === "TON") {
-      const required = params.amountAtomic + TON_GAS_RESERVE
+      const required = params.amountAtomic + gasFee
       if (tonBalance < required) {
         return {
           ok: false,
-          reason: `Treasury TON liquidity/gas is insufficient. Available ${formatAtomic(tonBalance.toString(), 9)} TON; required ${formatAtomic(required.toString(), 9)} TON (amount + gas reserve).`,
+          reason: `Aborted: treasury TON liquidity/gas is insufficient. Available ${formatAtomic(tonBalance.toString(), 9)} TON; required ${formatAtomic(required.toString(), 9)} TON (amount + ${formatAtomic(gasFee.toString(), 9)} TON capped gas).`,
         }
       }
       messages = [internal({ to: destination, value: params.amountAtomic, bounce: false })]
@@ -242,10 +253,10 @@ export async function executePayout(params: { assetCode: string; destination: st
       const master = params.assetCode === "USDT" ? config.usdtMasterAddress : config.gramMasterAddress
       const decimals = params.assetCode === "USDT" ? 6 : 9
       if (!master) return { ok: false, reason: `${params.assetCode} jetton master address is not configured.` }
-      if (tonBalance < JETTON_ATTACH + TON_GAS_RESERVE) {
+      if (tonBalance < gasFee) {
         return {
           ok: false,
-          reason: `Treasury TON gas is insufficient to send the ${params.assetCode} jetton transfer. Fund ${config.treasuryAddress} with TON for gas and verification fees.`,
+          reason: `Aborted: treasury TON gas is insufficient to broadcast the ${params.assetCode} jetton transfer. Available ${formatAtomic(tonBalance.toString(), 9)} TON; the gas cap is ${formatAtomic(gasFee.toString(), 9)} TON. Fund ${config.treasuryAddress} with TON before retrying.`,
         }
       }
       const masterAddress = Address.parse(master)
@@ -267,7 +278,7 @@ export async function executePayout(params: { assetCode: string; destination: st
         .storeCoins(BigInt(1))
         .storeBit(0)
         .endCell()
-      messages = [internal({ to: jettonWalletAddress, value: JETTON_ATTACH, bounce: true, body })]
+      messages = [internal({ to: jettonWalletAddress, value: gasFee, bounce: true, body })]
     }
 
     const seqno = await opened.getSeqno()
