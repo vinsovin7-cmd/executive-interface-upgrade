@@ -16,9 +16,27 @@ export type Database = {
         Relationships: []
       }
       withdrawal_requests: {
-        Row: { id: string; user_id: string; network: string; asset_code: string; asset_decimals: number; amount_atomic: string; destination: string; status: string; idempotency_key: string; created_at: string; updated_at: string; transaction_hash: string | null }
-        Insert: { id?: string; user_id: string; network?: string; asset_code: string; asset_decimals: number; amount_atomic: string; destination: string; status?: string; idempotency_key?: string; created_at?: string; updated_at?: string; transaction_hash?: string | null }
-        Update: { network?: string; asset_code?: string; asset_decimals?: number; amount_atomic?: string; destination?: string; status?: string; updated_at?: string; transaction_hash?: string | null }
+        Row: { id: string; user_id: string; network: string; asset_code: string; asset_decimals: number; amount_atomic: string; destination: string; status: string; idempotency_key: string; created_at: string; updated_at: string; transaction_hash: string | null; failure_reason: string | null; payout_attempted_at: string | null }
+        Insert: { id?: string; user_id: string; network?: string; asset_code: string; asset_decimals: number; amount_atomic: string; destination: string; status?: string; idempotency_key?: string; created_at?: string; updated_at?: string; transaction_hash?: string | null; failure_reason?: string | null; payout_attempted_at?: string | null }
+        Update: { network?: string; asset_code?: string; asset_decimals?: number; amount_atomic?: string; destination?: string; status?: string; updated_at?: string; transaction_hash?: string | null; failure_reason?: string | null; payout_attempted_at?: string | null }
+        Relationships: []
+      }
+      reward_split_config: {
+        Row: { id: boolean; user_share_bps: number; treasury_share_bps: number; minimum_accumulation_seconds: number; updated_at: string }
+        Insert: { id?: boolean; user_share_bps: number; treasury_share_bps: number; minimum_accumulation_seconds?: number; updated_at?: string }
+        Update: { user_share_bps?: number; treasury_share_bps?: number; minimum_accumulation_seconds?: number; updated_at?: string }
+        Relationships: []
+      }
+      mining_sessions: {
+        Row: { user_id: string; wallet_address: string; status: string; started_at: string; last_tick_at: string; updated_at: string }
+        Insert: { user_id: string; wallet_address: string; status?: string; started_at?: string; last_tick_at?: string; updated_at?: string }
+        Update: { wallet_address?: string; status?: string; started_at?: string; last_tick_at?: string; updated_at?: string }
+        Relationships: []
+      }
+      treasury_accruals: {
+        Row: { id: string; source: string; asset_code: string; amount_atomic: string; originating_user_id: string | null; reward_event_id: string | null; created_at: string }
+        Insert: { id?: string; source: string; asset_code: string; amount_atomic: string; originating_user_id?: string | null; reward_event_id?: string | null; created_at?: string }
+        Update: { source?: string; asset_code?: string; amount_atomic?: string; originating_user_id?: string | null; reward_event_id?: string | null }
         Relationships: []
       }
       quest_completions: {
@@ -117,6 +135,25 @@ export type Database = {
       }
       get_admin_global_telemetry: { Args: Record<PropertyKey, never>; Returns: Json }
       record_owner_vault_failure: { Args: { p_owner_user_id: string }; Returns: string | null }
+      credit_reward_event: { Args: { p_user_id: string; p_event_type: string; p_event_key: string }; Returns: number }
+      get_mining_state: {
+        Args: Record<PropertyKey, never>
+        Returns: { status: string; wallet_address: string | null; started_at: string | null; unlock_at: string | null; seconds_remaining: number; withdrawal_locked: boolean; minimum_accumulation_seconds: number }[]
+      }
+      activate_wallet_mining: {
+        Args: { p_address: string }
+        Returns: { status: string; wallet_address: string | null; started_at: string | null; unlock_at: string | null; seconds_remaining: number; withdrawal_locked: boolean; minimum_accumulation_seconds: number }[]
+      }
+      begin_withdrawal_payout: {
+        Args: { p_request_id: string }
+        Returns: { request_id: string; user_id: string; asset_code: string; asset_decimals: number; amount_atomic: number; destination: string; status: string }[]
+      }
+      complete_withdrawal_payout: { Args: { p_request_id: string; p_transaction_hash: string }; Returns: undefined }
+      fail_withdrawal_payout: { Args: { p_request_id: string; p_reason: string }; Returns: undefined }
+      get_treasury_summary: {
+        Args: Record<PropertyKey, never>
+        Returns: { asset_code: string; accrued_atomic: number; pending_payout_atomic: number; paid_payout_atomic: number }[]
+      }
     }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>

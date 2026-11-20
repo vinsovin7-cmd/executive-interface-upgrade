@@ -48,9 +48,22 @@ export async function GET(request: Request) {
       block_id: blockId,
     })
     if (insertError) throw insertError
+
+    // Credit a real, provider-verified reward through the split-aware engine.
+    // The event key buckets by minute so provider retries cannot replay a claim.
+    const eventKey = `adsgram:${telegramUserId}:${blockId}:${Math.floor(Date.now() / 60_000)}`
+    const { data: credited, error: creditError } = await admin.rpc("credit_reward_event", {
+      p_user_id: account.user_id,
+      p_event_type: "adsgram",
+      p_event_key: eventKey,
+    })
+    if (creditError) throw creditError
+
+    return NextResponse.json(
+      { accepted: true, credited: Number(credited ?? 0) > 0, grossAtomic: String(credited ?? 0) },
+      { headers: { "Cache-Control": "no-store" } },
+    )
   } catch {
     return NextResponse.json({ error: "Reward callback could not be recorded." }, { status: 503 })
   }
-
-  return NextResponse.json({ accepted: true }, { headers: { "Cache-Control": "no-store" } })
 }

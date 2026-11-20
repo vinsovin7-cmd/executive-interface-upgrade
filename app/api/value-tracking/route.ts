@@ -2,6 +2,7 @@ import { Address } from "@ton/core"
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
+import { MINIMUM_ACCUMULATION_SECONDS, TREASURY_SHARE_BPS, USER_SHARE_BPS } from "@/lib/mining/config"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
@@ -61,17 +62,19 @@ export async function GET() {
   const { error: referralInitError } = await admin.from("referral_stats").upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true })
   if (referralInitError) return NextResponse.json({ error: "Referral status could not be initialized." }, { status: 503 })
 
-  const [wallet, airdrops, quests, withdrawals, referral, rewardBalances] = await Promise.all([
+  const [wallet, airdrops, quests, withdrawals, referral, rewardBalances, miningState] = await Promise.all([
     supabase.from("wallet_bindings").select("id, network, address, status, created_at, verified_at").eq("user_id", user.id).maybeSingle(),
     supabase.from("airdrop_claims").select("id, campaign_key, status, created_at, verified_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20),
     supabase.from("quest_completions").select("id, quest_key, status, created_at, verified_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20),
-    supabase.from("withdrawal_requests").select("id, network, asset_code, asset_decimals, amount_atomic, destination, status, created_at, updated_at, transaction_hash").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20),
+    supabase.from("withdrawal_requests").select("id, network, asset_code, asset_decimals, amount_atomic, destination, status, created_at, updated_at, transaction_hash, failure_reason").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20),
     supabase.from("referral_stats").select("referral_code, tier1_count, tier2_count, tier1_commission_atomic, tier2_commission_atomic").eq("user_id", user.id).maybeSingle(),
     admin.rpc("get_user_reward_balances", { p_user_id: user.id }),
+    supabase.rpc("get_mining_state"),
   ])
   if (wallet.error || airdrops.error || quests.error || withdrawals.error || referral.error || rewardBalances.error) {
     return NextResponse.json({ error: "Your value activity could not be loaded." }, { status: 503 })
   }
+  const state = miningState.data?.[0]
 
   return NextResponse.json({
     wallet: wallet.data,
@@ -86,6 +89,16 @@ export async function GET() {
       minimum_withdrawal_atomic: String(balance.minimum_withdrawal_atomic),
     })),
     referral: referral.data,
+    mining: {
+      status: state?.status ?? "inactive",
+      walletAddress: state?.wallet_address ?? null,
+      startedAt: state?.started_at ?? null,
+      unlockAt: state?.unlock_at ?? null,
+      secondsRemaining: state?.seconds_remaining ?? MINIMUM_ACCUMULATION_SECONDS,
+      withdrawalLocked: state?.withdrawal_locked ?? true,
+      minimumAccumulationSeconds: state?.minimum_accumulation_seconds ?? MINIMUM_ACCUMULATION_SECONDS,
+    },
+    split: { userShareBps: USER_SHARE_BPS, treasuryShareBps: TREASURY_SHARE_BPS },
   }, { headers: { "Cache-Control": "private, no-store" } })
 }
 
@@ -94,7 +107,7 @@ export async function POST(request: Request) {
   const contentLength = Number(request.headers.get("content-length") ?? 0)
   if (contentLength > 10_000) return NextResponse.json({ error: "Request is too large." }, { status: 413 })
 
-  const { user } = await getUser()
+  const { user, supabase } = await getUser()
   if (!user) return NextResponse.json({ error: "Sign in before submitting this request." }, { status: 401 })
   if (!user.email_confirmed_at) return NextResponse.json({ error: "Verify your email before submitting a value-related request." }, { status: 403 })
 
@@ -124,15 +137,24 @@ export async function POST(request: Request) {
 
     if (body.action === "bind-wallet") {
       const address = parseTonAddress(body.address)
-      const { data: current, error: lookupError } = await admin.from("wallet_bindings").select("address, status").eq("user_id", user.id).eq("network", "ton-mainnet").maybeSingle()
-      if (lookupError) throw lookupError
-      if (current) {
-        if (current.address === address) return NextResponse.json({ ok: true, status: current.status, message: "This wallet is already on file." })
-        return NextResponse.json({ error: "A TON wallet is already bound. Contact support to change it." }, { status: 409 })
-      }
-      const { error } = await admin.from("wallet_bindings").insert({ user_id: user.id, network: "ton-mainnet", address, status: "pending" })
-      if (error) throw error
-      return NextResponse.json({ ok: true, status: "pending", message: "Wallet submitted for ownership verification." }, { status: 201 })
+      const { data: mining, error: bindError } = await supabase.rpc("activate_wallet_mining", { p_address: address })
+      if (bindError) throw bindError
+      const state = mining?.[0]
+      if (!state) throw new Error("Mining session could not be activated.")
+      return NextResponse.json({
+        ok: true,
+        status: "verified",
+        mining: {
+          status: state.status,
+          walletAddress: state.wallet_address,
+          startedAt: state.started_at,
+          unlockAt: state.unlock_at,
+          secondsRemaining: state.seconds_remaining,
+          withdrawalLocked: state.withdrawal_locked,
+          minimumAccumulationSeconds: state.minimum_accumulation_seconds,
+        },
+        message: "Wallet bound to your account. Mining is active; withdrawals unlock after 600 seconds of accumulation.",
+      }, { status: 201 })
     }
 
     if (body.action === "airdrop") {
@@ -167,14 +189,14 @@ export async function POST(request: Request) {
       })
       if (error) {
         if (error.code === "22023") {
-          const insufficient = error.message.includes("Insufficient verified available balance")
-          return NextResponse.json({ error: error.message }, { status: insufficient ? 409 : 400 })
+          const conflict = error.message.includes("Insufficient verified available balance") || error.message.includes("unlocks after")
+          return NextResponse.json({ error: error.message }, { status: conflict ? 409 : 400 })
         }
         throw error
       }
       const queued = data?.[0]
       if (!queued) throw new Error("Withdrawal request was not queued.")
-      return NextResponse.json({ ok: true, request: queued, message: "Withdrawal queued and reserved against your verified ledger balance. This does not initiate a transfer; payout remains subject to manual review." }, { status: 201 })
+      return NextResponse.json({ ok: true, request: queued, message: "Withdrawal queued against your verified 30% share. Confirm the on-chain payout to broadcast the real TON / GRAM transfer to your bound wallet." }, { status: 201 })
     }
 
     return NextResponse.json({ error: "This request type is not supported." }, { status: 400 })
