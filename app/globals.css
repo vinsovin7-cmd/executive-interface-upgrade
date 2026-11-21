@@ -377,3 +377,110 @@
   .admin-log-row { grid-template-columns:1fr 1fr; gap:7px; }
   .admin-log-owner { white-space:normal; overflow-wrap:anywhere; }
 }
+
+/* ===== Executive Typography & Readability Upgrade =====
+   Relative units (rem/em) keep Ctrl+ / Ctrl- / Ctrl+0 zoom
+   fully natural. No keyboard shortcuts are intercepted. */
+
+html { font-size: 16px; }
+body { font-size: 1rem; line-height: 1.6; }
+
+/* Headings — bolder, larger */
+h1, h2, h3, h4, h5, h6,
+.page-heading h1,
+.admin-page-heading h1,
+.admin-login-copy h1,
+.auth-panel h2,
+.owner-assistant-heading h3,
+.panel-header h3,
+.explorer-feed-heading h4,
+.heat-ledger-heading h4,
+.settings-heading h3,
+.solar-title-wrap h3,
+.value-tracking-heading h3,
+.account-telemetry-header h3 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.page-heading h1 { font-size: 1.75rem; }
+.admin-page-heading h1 { font-size: 1.5rem; }
+.admin-login-copy h1 { font-size: 1.5rem; }
+.auth-panel h2 { font-size: 1.5rem; }
+.owner-assistant-heading h3 { font-size: 1.25rem; }
+.panel-header h3 { font-size: 1.125rem; font-weight: 700; }
+.solar-title-wrap h3 { font-size: 1.125rem; font-weight: 700; }
+
+/* Sub-labels, captions, micro-labels — larger, bolder, not tracked-out */
+.micro-label, .eyebrow, .sidebar-label, .ad-label,
+.section-label-short, .section-index, .auth-divider,
+.hero-bottom strong, .readiness-footer,
+.admin-access, .admin-refresh-note,
+.content-footer, .admin-footer {
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  color: #cbd5e1 !important;
+  text-transform: none !important;
+}
+
+/* Status tags, helper text, secondary descriptions — higher contrast */
+.readiness-copy p, .panel .muted-copy, .gas-panel .muted-copy,
+.auth-description, .auth-security, .account-telemetry-intro,
+.account-telemetry-footnote, .dex-intro, .dex-meta, .dex-disclaimer,
+.telegram-link-copy, .telegram-link-status, .telegram-link-message,
+.adsgram-placement-copy p, .adsgram-disclosure, .admin-network-note,
+.admin-error p, .admin-loading, .button-help,
+.mining-gate p, .mining-message, .heat-miner-description,
+.owner-assistant-heading p, .owner-assistant-disclaimer,
+.settings-overview>p, .settings-ordinary>p {
+  font-size: 0.9375rem !important;
+  font-weight: 500 !important;
+  color: #e2e8f0 !important;
+  line-height: 1.7 !important;
+}
+
+/* Labels and form text — bolder, larger */
+label, .auth-form label, .admin-login-field, .admin-control,
+.vault-field, .dex-field>span, .account-control {
+  font-size: 0.9375rem !important;
+  font-weight: 600 !important;
+  color: #e2e8f0 !important;
+}
+
+/* Data/value readouts — larger, sharper */
+.admin-metric-card>strong,
+.admin-total-list>div>strong,
+.balance-amount,
+.mining-metric strong,
+.mining-balance-amount,
+.ton-telemetry-stat>strong,
+.referral-metrics strong,
+.value-panel-title h4,
+.claim-rule strong {
+  font-size: 1.125rem !important;
+  font-weight: 700 !important;
+}
+
+/* Buttons and interactive text — clearer */
+button, .settings-action, .settings-quiet, .admin-console-actions button,
+.auth-submit, .admin-login-submit, .dex-submit, .telegram-link-button,
+.telegram-refresh-button, .value-action, .value-quiet-action,
+.checkin-button, .auth-switch button {
+  font-size: 0.9375rem !important;
+  font-weight: 600 !important;
+}
+
+/* Sidebar nav items — bolder */
+.nav-item {
+  font-size: 0.9375rem !important;
+  font-weight: 600 !important;
+  color: #cbd5e1 !important;
+}
+.nav-active { color: #e2e8f0 !important; }
+
+/* Breadcrumbs */
+.breadcrumbs {
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  color: #94a3b8 !important;
+}
