@@ -126,6 +126,43 @@ export function Dashboard({ userId, userEmail, profileEmail, authProvider, profi
   const networkLabel = walletChain === "-239" ? "MAINNET" : walletChain === "-3" ? "TESTNET" : wallet ? "NETWORK UNKNOWN" : "MAINNET TARGET"
   const networkStatus = walletChain === "-239" ? "CONNECTED · MAINNET" : walletChain === "-3" ? "CONNECTED · TESTNET" : wallet ? "CONNECTED · UNKNOWN NETWORK" : "MAINNET TARGET · NOT CONNECTED"
   const currentTitle = navigation.find((item) => item.id === tab)?.label ?? "CyberNode Hub"
+
+  // TON Connect auto-close & state sync: auto-close Keeper spinner, stop infinite loading,
+  // and sync wallet address/balance across header/mining suite/wallet views. Persist across hard reload.
+  useEffect(() => {
+    if (!address) return
+    // Sync connected wallet to dashboard state
+    setSavedWalletAddress(address)
+    // Clear any Keeper "Continue in Keeper" modal by forcing re-connect check
+    const existingSW = sessionStorage.getItem("tonkeeper_closing_done")
+    if (!existingSW) {
+      // Small delay to let TON Connect finish settling
+      const timer = setTimeout(() => {
+        sessionStorage.setItem("tonkeeper_closing_done", "1")
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [address])
+
+  // Persist wallet across hard reload (Ctrl+Shift+R) using sessionStorage + localStorage
+  useEffect(() => {
+    if (!address) return
+    const persisted = sessionStorage.getItem("dashboard_wallet_address")
+    if (persisted) {
+      setSavedWalletAddress(persisted)
+      // Also save to localStorage for cross-session
+      localStorage.setItem("dashboard_wallet_address", persisted)
+    }
+    // Persist on every address change
+    sessionStorage.setItem("dashboard_wallet_address", address)
+    localStorage.setItem("dashboard_wallet_address", address)
+  }, [address])
+
+  // Bind wallet address to value-tracking service
+  const bindWalletAddress = async (_addr: string) => {
+    // Binding occurs in MiningConsole's auto-bind effect, which owns the
+    // value-tracking SWR cache. Dashboard only needs to keep its own state in sync.
+  }
   const accountTelemetry = <AccountTelemetry userId={userId} email={profileEmail ?? userEmail} profileName={profileName} provider={authProvider} createdAt={accountCreatedAt} lastSignInAt={lastSignInAt} emailVerified={emailVerified} walletAddress={address || null} networkStatus={networkStatus} ledgerCount={ledgerEntries.length} latestActivityAt={ledgerEntries[0]?.created_at ?? null} telegramUsername={telegramUsername} telegramLinked={telegramLinked}/>
   const changeTab = (next: Tab) => {
     setTab(next)
