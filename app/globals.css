@@ -297,3 +297,83 @@
   .auth-panel { max-height:calc(100dvh - 28px); overflow-y:auto; padding:26px 22px; }
 }
 @media (max-width:580px) { .radar-visual { top:26px; transform:translateX(-50%) scale(.75); transform-origin:center center; } }
+
+/* Rewards & on-chain claim engine */
+.claim-console { padding:22px; }
+.claim-rules { position:relative; z-index:1; display:grid; grid-template-columns:repeat(auto-fit,minmax(148px,1fr)); gap:10px; margin-top:16px; }
+.claim-rule { display:flex; min-width:0; flex-direction:column; gap:7px; padding:12px; border:1px solid #242f3b; border-radius:8px; background:linear-gradient(155deg,#0f1620,#0b1119); }
+.claim-rule strong { color:#e2ecf1; font-size:13px; font-weight:600; letter-spacing:.4px; }
+.claim-pool { color:#9fb0bd; }
+.claim-pool.is-active { color:#8ff0bb; }
+.claim-pool.is-paused { color:#e2c183; }
+.claim-wallet-row { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-top:16px; padding:15px 16px; border:1px solid #26313d; border-radius:9px; background:rgba(9,14,21,.66); }
+.claim-assets { position:relative; z-index:1; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:11px; margin-top:16px; }
+.claim-asset { display:flex; flex-direction:column; gap:11px; padding:15px; border:1px solid #242f3b; border-radius:9px; background:linear-gradient(155deg,#0f1620,#0b1119); }
+.claim-asset-meta { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.claim-asset-meta>span { display:flex; min-width:0; flex-direction:column; gap:5px; }
+.claim-asset-meta strong { color:#dce7ee; font:11px var(--font-mono); }
+.claim-asset-note { color:#7f8e9c; font-size:9px; line-height:1.45; }
+.claim-treasury-note { position:relative; z-index:1; display:flex; flex-direction:column; gap:6px; margin-top:16px; padding:14px 15px; border:1px solid #26313d; border-radius:9px; background:rgba(9,14,21,.6); }
+.claim-treasury-note .eyebrow { display:inline-flex; align-items:center; gap:5px; color:#d9bd86; }
+.claim-treasury-note>a { display:inline-flex; align-items:center; gap:5px; width:fit-content; color:#7fd9cc; font-size:10px; text-decoration:none; overflow-wrap:anywhere; }
+.claim-treasury-note>a:hover { color:#a8efe4; text-decoration:underline; }
+.claim-treasury-note .muted-copy { margin:2px 0 0; font-size:9px; }
+
+/* Protected admin control plane */
+.admin-login { display:flex; max-width:430px; flex-direction:column; align-items:flex-start; gap:12px; margin:40px auto; padding:25px; border:1px solid #27333f; border-radius:11px; background:radial-gradient(ellipse at 8% 0%,rgba(98,229,213,.09),transparent 42%),linear-gradient(155deg,#0f1620,#0b1119); }
+.admin-login-mark { display:grid; width:41px; height:41px; place-items:center; border:1px solid #34574d; border-radius:10px; background:#11231f; color:#83dcc2; }
+.admin-login-copy { display:flex; flex-direction:column; gap:5px; }
+.admin-login-copy h1 { margin:0; color:#e8eef3; font-size:19px; font-weight:650; letter-spacing:-.4px; }
+.admin-login-copy p { margin:0; color:#8e9caa; font-size:10px; line-height:1.55; }
+.admin-login-field { display:flex; width:100%; flex-direction:column; gap:7px; color:#c2cdd5; font-size:10px; }
+.admin-login-field .micro-label { display:inline-flex; align-items:center; gap:5px; }
+.admin-login-field input { width:100%; min-height:40px; padding:0 12px; border:1px solid #2b3944; border-radius:6px; outline:none; background:#0a1119; color:#e6eef4; font:12px var(--font-mono); letter-spacing:1.5px; }
+.admin-login-field input:focus { border-color:#4b9c91; box-shadow:0 0 0 2px rgba(98,229,213,.14); }
+.admin-login-error { margin:0; color:#e69a94; font-size:10px; line-height:1.45; }
+.admin-login-submit { display:inline-flex; width:100%; min-height:40px; align-items:center; justify-content:center; gap:8px; border:1px solid #397a72; border-radius:7px; background:linear-gradient(100deg,#173c36,#16302f); color:#c5f4e8; font-size:11px; font-weight:650; letter-spacing:.3px; cursor:pointer; transition:background .16s ease; }
+.admin-login-submit:hover:not(:disabled) { background:linear-gradient(100deg,#205048,#1c3b39); }
+.admin-login-submit:focus-visible { outline:2px solid #62e5d5; outline-offset:2px; }
+.admin-login-submit:disabled { opacity:.5; cursor:not-allowed; }
+
+.admin-console-page { gap:13px; }
+.admin-console-actions { display:flex; flex-wrap:wrap; gap:9px; }
+.admin-console-actions button { display:inline-flex; min-height:35px; align-items:center; gap:7px; padding:0 13px; border:1px solid #34434e; border-radius:7px; background:#111a24; color:#c4d1da; font-size:10px; cursor:pointer; transition:border-color .16s ease,background .16s ease,color .16s ease; }
+.admin-console-actions button:hover:not(:disabled) { border-color:#46605e; background:#16212c; color:#e2edf2; }
+.admin-console-actions button:focus-visible { outline:2px solid #62e5d5; outline-offset:2px; }
+.admin-console-actions button:disabled { opacity:.5; cursor:not-allowed; }
+.admin-console-actions button.is-danger { border-color:#5a3733; background:#1d1513; color:#e8b1a7; }
+.admin-console-actions button.is-danger:hover:not(:disabled) { border-color:#7d4a42; background:#261816; color:#f3c4ba; }
+.admin-console-message { margin:0; padding:10px 13px; border:1px solid #2f5449; border-radius:7px; background:rgba(20,45,40,.4); color:#9fe4cd; font-size:10px; line-height:1.5; }
+.admin-anchor { display:flex; flex-direction:column; gap:6px; margin-top:13px; padding:12px 13px; border:1px solid #26313d; border-radius:7px; background:rgba(9,14,21,.5); }
+.admin-anchor>a { display:inline-flex; width:fit-content; align-items:center; gap:5px; color:#7fd9cc; font-size:10px; text-decoration:none; overflow-wrap:anywhere; }
+.admin-anchor>a:hover { color:#a8efe4; text-decoration:underline; }
+.admin-anchor .muted-copy { margin:2px 0 0; font-size:9px; }
+.admin-controls { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:11px; margin-top:14px; }
+.admin-control { display:flex; min-width:0; flex-direction:column; gap:7px; color:#c2cdd5; font-size:10px; }
+.admin-control select,.admin-control input { width:100%; min-width:0; min-height:37px; padding:0 10px; border:1px solid #2b3944; border-radius:6px; outline:none; background:#0b121a; color:#e3edf2; font:10px var(--font-mono); }
+.admin-control select:focus,.admin-control input:focus { border-color:#4b9c91; box-shadow:0 0 0 2px rgba(98,229,213,.12); }
+.admin-claim-summary { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.admin-log { display:flex; max-height:340px; flex-direction:column; gap:7px; margin-top:12px; overflow-y:auto; }
+.admin-log-row { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr) auto auto; align-items:center; gap:10px; padding:10px 12px; border:1px solid #202a36; border-radius:7px; background:rgba(10,15,22,.6); color:#cdd8e0; font-size:10px; }
+.admin-log-row>a { color:#7fd9cc; text-decoration:none; overflow-wrap:anywhere; }
+.admin-log-row>a:hover { text-decoration:underline; }
+.admin-log-row small { color:#7d8b99; font-size:9px; text-align:right; }
+.admin-log-owner { overflow:hidden; color:#d7e2ea; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.admin-state { justify-self:start; }
+.ledger-status { display:inline-flex; align-items:center; gap:5px; padding:3px 7px; border:1px solid #35434d; border-radius:999px; color:#a9b6c1; font:600 8px var(--font-mono); letter-spacing:.5px; text-transform:uppercase; }
+.admin-state-pending { border-color:#53432a; background:rgba(52,40,18,.4); color:#e0bd7f; }
+.admin-state-confirmed { border-color:#2f6a52; background:rgba(17,48,36,.5); color:#93f0bd; }
+.admin-state-insufficient_balance { border-color:#5c4a2b; color:#e2c183; }
+.admin-state-wallet_required { border-color:#3f4a58; color:#a9bccb; }
+.admin-state-pool_paused { border-color:#5a3733; color:#e8b1a7; }
+
+@media (max-width:900px) { .admin-controls,.admin-claim-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:680px) {
+  .claim-console { padding:16px; }
+  .admin-controls,.admin-claim-summary { grid-template-columns:1fr; }
+  .claim-wallet-row { align-items:stretch; flex-direction:column; }
+  .claim-wallet-row .mining-primary { width:100%; }
+  .claim-asset-meta { grid-template-columns:1fr 1fr; }
+  .admin-log-row { grid-template-columns:1fr 1fr; gap:7px; }
+  .admin-log-owner { white-space:normal; overflow-wrap:anywhere; }
+}

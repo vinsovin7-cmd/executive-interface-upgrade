@@ -8,6 +8,29 @@ export const MINIMUM_ACCUMULATION_SECONDS = 600
 
 export const DEFAULT_TREASURY_ADDRESS = "UQBLz9rXlNtlzVUMuUHosRBTpUWqfoXQ8WTkyAgtbSVlbnBJ"
 
+// Treasury collection/refill anchor. This is the collection wallet rewards and
+// gas are refilled from; it is referenced by the claim guardrails and surfaced
+// in the protected admin telemetry. It is never used to sign a payout — payout
+// signing stays with the configured treasury signer in lib/ton/treasury.ts.
+export const TREASURY_ANCHOR_ADDRESS = "UQDrrGsThCAJrPj6QbUueKJyh8QOQrBZwHSm1C6E_UahK5Ok"
+
+// Assets a connected Tonkeeper wallet can claim directly.
+export const CLAIMABLE_ASSETS = ["GRAM", "USDT"] as const
+
+export const CLAIM_STATES = ["pending", "confirmed", "insufficient_balance", "wallet_required", "pool_paused"] as const
+export type ClaimState = (typeof CLAIM_STATES)[number]
+
+export const CLAIM_STATE_LABELS: Record<ClaimState, string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  insufficient_balance: "Insufficient balance",
+  wallet_required: "Wallet required",
+  pool_paused: "Pool paused",
+}
+
+export const POOL_STATES = ["active", "paused", "maintenance"] as const
+export type PoolState = (typeof POOL_STATES)[number]
+
 export const ASSET_DECIMALS: Record<string, number> = { TON: 9, GRAM: 9, USDT: 6 }
 export const ASSET_MINIMUMS: Record<string, string> = { TON: "1", GRAM: "10", USDT: "5" }
 
@@ -29,4 +52,39 @@ export function formatAtomic(value: string, decimals: number) {
   const whole = digits.slice(0, -decimals) || "0"
   const fraction = digits.slice(-decimals).replace(/0+$/, "")
   return `${negative ? "-" : ""}${fraction ? `${whole}.${fraction}` : whole}`
+}
+
+export const GAS_ASSET_CODE = "TON"
+export const JETTON_POOL_ASSETS = ["GRAM", "USDT"] as const
+
+export type TreasuryLiquidity = {
+  gasAssetCode: string
+  gasBalance: string | null
+  gasReady: boolean
+  pools: Array<{ assetCode: string; balance: string | null; ready: boolean }>
+}
+
+export function classifyTreasuryLiquidity(status: {
+  tonBalance: string | null
+  gramBalance: string | null
+  usdtBalance: string | null
+}): TreasuryLiquidity {
+  const positive = (value: string | null) => value !== null && Number(value) > 0
+  return {
+    gasAssetCode: GAS_ASSET_CODE,
+    gasBalance: status.tonBalance,
+    gasReady: positive(status.tonBalance),
+    pools: JETTON_POOL_ASSETS.map((assetCode) => ({
+      assetCode,
+      balance: assetCode === "GRAM" ? status.gramBalance : status.usdtBalance,
+      ready: positive(assetCode === "GRAM" ? status.gramBalance : status.usdtBalance),
+    })),
+  }
+}
+
+export function describeLiquidity(liq: TreasuryLiquidity): string {
+  if (!liq.gasReady) return "Treasury gas empty"
+  const readyPools = liq.pools.filter((p) => p.ready).length
+  if (readyPools === liq.pools.length) return "All pools liquid"
+  return `${readyPools}/${liq.pools.length} jetton pools funded`
 }

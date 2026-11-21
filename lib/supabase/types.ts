@@ -71,7 +71,7 @@ export type Database = {
       }
       node_telemetry: {
         Row: { id: string; user_id: string; source: string; metric: string; value: number; unit: string; observed_at: string; created_at: string }
-        Insert: { id?: string; user_id: string; source: string; metric: string; value: number; unit: string; observed_at: string; created_at?: string }
+        Insert: { id?: string; user_id: string; source: string; metric: string; value: number; unit: string; observed_at?: string; created_at?: string }
         Update: { source?: string; metric?: string; value?: number; unit?: string; observed_at?: string }
         Relationships: []
       }
@@ -82,9 +82,45 @@ export type Database = {
         Relationships: []
       }
       ledger_entries: {
-        Row: { id: string; user_id: string; network: string; asset_master: string; amount: number; transaction_hash: string | null; entry_type: string; status: string; created_at: string; verified_at: string | null; withdrawal_request_id: string | null; reward_event_id: string | null }
-        Insert: { id?: string; user_id: string; network: string; asset_master: string; amount: number; transaction_hash?: string | null; entry_type: string; status: string; created_at?: string; verified_at?: string | null; withdrawal_request_id?: string | null; reward_event_id?: string | null }
-        Update: { network?: string; asset_master?: string; amount?: number; transaction_hash?: string | null; entry_type?: string; status?: string; verified_at?: string | null; withdrawal_request_id?: string | null; reward_event_id?: string | null }
+        Row: { id: string; user_id: string; network: string; asset_master: string; amount: number; transaction_hash: string | null; entry_type: string; status: string; created_at: string; verified_at: string | null; withdrawal_request_id: string | null; reward_event_id: string | null; claim_request_id: string | null }
+        Insert: { id?: string; user_id: string; network: string; asset_master: string; amount: number; transaction_hash?: string | null; entry_type: string; status: string; created_at?: string; verified_at?: string | null; withdrawal_request_id?: string | null; reward_event_id?: string | null; claim_request_id?: string | null }
+        Update: { network?: string; asset_master?: string; amount?: number; transaction_hash?: string | null; entry_type?: string; status?: string; verified_at?: string | null; withdrawal_request_id?: string | null; reward_event_id?: string | null; claim_request_id?: string | null }
+        Relationships: []
+      }
+      claim_pool_config: {
+        Row: { id: boolean; pool_state: string; per_user_cooldown_seconds: number; per_user_daily_cap_gram_atomic: string; per_user_daily_cap_usdt_atomic: string; global_daily_cap_gram_atomic: string; global_daily_cap_usdt_atomic: string; treasury_anchor_address: string; updated_at: string }
+        Insert: { id?: boolean; pool_state?: string; per_user_cooldown_seconds?: number; per_user_daily_cap_gram_atomic?: string; per_user_daily_cap_usdt_atomic?: string; global_daily_cap_gram_atomic?: string; global_daily_cap_usdt_atomic?: string; treasury_anchor_address?: string; updated_at?: string }
+        Update: { pool_state?: string; per_user_cooldown_seconds?: number; per_user_daily_cap_gram_atomic?: string; per_user_daily_cap_usdt_atomic?: string; global_daily_cap_gram_atomic?: string; global_daily_cap_usdt_atomic?: string; treasury_anchor_address?: string; updated_at?: string }
+        Relationships: []
+      }
+      claim_requests: {
+        Row: { id: string; user_id: string; network: string; asset_code: string; asset_decimals: number; amount_atomic: string; destination: string | null; state: string; transaction_hash: string | null; failure_reason: string | null; idempotency_key: string; payout_attempted_at: string | null; confirmed_at: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; user_id: string; network?: string; asset_code: string; asset_decimals: number; amount_atomic?: string; destination?: string | null; state?: string; transaction_hash?: string | null; failure_reason?: string | null; idempotency_key?: string; payout_attempted_at?: string | null; confirmed_at?: string | null; created_at?: string; updated_at?: string }
+        Update: { state?: string; transaction_hash?: string | null; failure_reason?: string | null; payout_attempted_at?: string | null; confirmed_at?: string | null; updated_at?: string }
+        Relationships: []
+      }
+      staking_engines: {
+        Row: { id: number; name: string; asset_code: string; pool_status: string; funded_liquidity_atomic: string; active_staked_principal_atomic: string; base_apr_bps: number; max_boost_multiplier_bps: number; lockup_seconds: number; deposit_wallet_address: string; updated_at: string }
+        Insert: { id?: number; name: string; asset_code: string; pool_status?: string; funded_liquidity_atomic?: string; active_staked_principal_atomic?: string; base_apr_bps?: number; max_boost_multiplier_bps?: number; lockup_seconds?: number; deposit_wallet_address?: string; updated_at?: string }
+        Update: { name?: string; asset_code?: string; pool_status?: string; funded_liquidity_atomic?: string; active_staked_principal_atomic?: string; base_apr_bps?: number; max_boost_multiplier_bps?: number; lockup_seconds?: number; deposit_wallet_address?: string; updated_at?: string }
+        Relationships: []
+      }
+      staking_positions: {
+        Row: { id: string; user_id: string; engine_id: number; staked_principal_atomic: string; accrued_reward_atomic: string; applied_multiplier_bps: number; deposit_tx_hash: string | null; unstake_tx_hash: string | null; status: string; deposited_at: string; unstaked_at: string | null; claimed_at: string | null; updated_at: string }
+        Insert: { id?: string; user_id: string; engine_id: number; staked_principal_atomic?: string; accrued_reward_atomic?: string; applied_multiplier_bps?: number; deposit_tx_hash?: string | null; unstake_tx_hash?: string | null; status?: string; deposited_at?: string; unstaked_at?: string | null; claimed_at?: string | null; updated_at?: string }
+        Update: { staked_principal_atomic?: string; accrued_reward_atomic?: string; applied_multiplier_bps?: number; deposit_tx_hash?: string | null; unstake_tx_hash?: string | null; status?: string; unstaked_at?: string | null; claimed_at?: string | null; updated_at?: string }
+        Relationships: []
+      }
+      earn_increasers: {
+        Row: { key: string; name: string; description: string | null; category: string; enabled: boolean; multiplier_bps: number; cap_atomic: string; sort_order: number; updated_at: string }
+        Insert: { key: string; name: string; description?: string | null; category: string; enabled?: boolean; multiplier_bps?: number; cap_atomic?: string; sort_order?: number; updated_at?: string }
+        Update: { name?: string; description?: string | null; category?: string; enabled?: boolean; multiplier_bps?: number; cap_atomic?: string; sort_order?: number; updated_at?: string }
+        Relationships: []
+      }
+      admin_login_guard: {
+        Row: { guard_key: string; failed_attempts: number; lock_until: string | null; updated_at: string }
+        Insert: { guard_key: string; failed_attempts?: number; lock_until?: string | null; updated_at?: string }
+        Update: { failed_attempts?: number; lock_until?: string | null; updated_at?: string }
         Relationships: []
       }
       activity_sessions: {
@@ -154,6 +190,28 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: { asset_code: string; accrued_atomic: number; pending_payout_atomic: number; paid_payout_atomic: number }[]
       }
+      create_claim_request: {
+        Args: { p_user_id: string; p_asset_code: string; p_destination: string | null; p_idempotency_key: string }
+        Returns: { claim_id: string; state: string; asset_code: string; amount_atomic: string; destination: string | null; transaction_hash: string | null; failure_reason: string | null; created_at: string }[]
+      }
+      begin_claim_payout: {
+        Args: { p_claim_id: string }
+        Returns: { claim_id: string; user_id: string; asset_code: string; asset_decimals: number; amount_atomic: string; destination: string | null; state: string }[]
+      }
+      complete_claim_payout: { Args: { p_claim_id: string; p_transaction_hash: string }; Returns: undefined }
+      fail_claim_payout: { Args: { p_claim_id: string; p_reason: string; p_state: string }; Returns: undefined }
+      record_admin_login_failure: { Args: { p_guard_key: string }; Returns: string | null }
+      clear_admin_login_failures: { Args: { p_guard_key: string }; Returns: undefined }
+      record_stake_deposit: {
+        Args: { p_user_id: string; p_engine_id: number; p_amount_atomic: string; p_deposit_tx_hash: string }
+        Returns: Json
+      }
+      compute_staking_rewards: { Args: Record<PropertyKey, never>; Returns: Json }
+      unstake_and_settle: {
+        Args: { p_user_id: string; p_engine_id: number; p_transaction_hash: string }
+        Returns: Json
+      }
+      list_earn_increasers: { Args: Record<PropertyKey, never>; Returns: Json }
     }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>

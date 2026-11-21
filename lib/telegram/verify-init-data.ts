@@ -1,12 +1,42 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 
-type TelegramUser = { id: number | string }
-
-type VerifiedTelegramInitData = {
-  telegramUserId: string
+type TelegramUser = {
+  id: number | string
+  username?: unknown
+  first_name?: unknown
+  last_name?: unknown
+  photo_url?: unknown
 }
 
-export function verifyTelegramInitData(initData: string, botToken: string): VerifiedTelegramInitData | null {
+export type VerifiedTelegramIdentity = {
+  telegramUserId: string
+  username: string | null
+  firstName: string | null
+  lastName: string | null
+  photoUrl: string | null
+}
+
+function cleanText(value: unknown, maxLength: number): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  return trimmed.slice(0, maxLength)
+}
+
+function cleanPhotoUrl(value: unknown): string | null {
+  const candidate = cleanText(value, 512)
+  if (!candidate) return null
+  try {
+    return new URL(candidate).protocol === "https:" ? candidate : null
+  } catch {
+    return null
+  }
+}
+
+// Validates Telegram Mini App initData using the documented HMAC-SHA-256 flow:
+// secretKey = HMAC_SHA256(key = "WebAppData", msg = botToken)
+// expectedHash = HMAC_SHA256(key = secretKey, msg = dataCheckString)
+export function verifyTelegramInitData(initData: string, botToken: string): VerifiedTelegramIdentity | null {
   if (!initData || initData.length > 4096 || !botToken) return null
 
   const params = new URLSearchParams(initData)
@@ -32,7 +62,14 @@ export function verifyTelegramInitData(initData: string, botToken: string): Veri
     const user = JSON.parse(params.get("user") ?? "null") as TelegramUser | null
     const telegramUserId = user?.id == null ? "" : String(user.id)
     if (!/^\d{1,20}$/.test(telegramUserId)) return null
-    return { telegramUserId }
+
+    return {
+      telegramUserId,
+      username: cleanText(user?.username, 64),
+      firstName: cleanText(user?.first_name, 64),
+      lastName: cleanText(user?.last_name, 64),
+      photoUrl: cleanPhotoUrl(user?.photo_url),
+    }
   } catch {
     return null
   }

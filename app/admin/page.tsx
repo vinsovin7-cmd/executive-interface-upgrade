@@ -1,24 +1,30 @@
-import { notFound } from "next/navigation"
-import { AdminTelemetry } from "@/components/cybernode/admin-telemetry"
-import { createClient } from "@/lib/supabase/server"
+import { AdminConsole } from "@/components/cybernode/admin-console"
+import { AdminLogin } from "@/components/cybernode/admin-login"
+import { isAdminSessionValid } from "@/lib/admin/session"
 
+export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 export default async function AdminPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user || user.app_metadata?.role !== "admin") notFound()
+  // Mandatory server-side session verification on every /admin page load.
+  const authenticated = await isAdminSessionValid()
 
   return (
     <main className="admin-shell">
       <header className="admin-header">
-        <a className="admin-brand" href="/" aria-label="CyberNode dashboard"><span className="admin-brand-mark"><span /></span><span>CYBER<b>NODE</b><small>OPERATOR TELEMETRY</small></span></a>
-        <span className="admin-access"><span /> RESTRICTED ACCESS</span>
+        <a className="admin-brand" href="/" aria-label="CyberNode dashboard"><span className="admin-brand-mark"><span /></span><span>CYBER<b>NODE</b><small>OPERATOR CONTROL PLANE</small></span></a>
+        <span className="admin-access"><span /> {authenticated ? "SESSION VERIFIED" : "RESTRICTED ACCESS"}</span>
       </header>
-      <section className="admin-page-heading"><div><span className="section-kicker"><span className="pulse-dot" /> SYSTEM OVERSIGHT</span><h1>Global telemetry</h1><p>Authenticated activity, verified ledger totals, and ad callback receipts in one protected view.</p></div><span className="admin-admin-badge">ADMIN</span></section>
-      <AdminTelemetry />
-      <footer className="admin-footer">CYBERNODE <b>·</b> GLOBAL METRICS <span>Only server-verified ledger entries count as rewards.</span></footer>
+      <section className="admin-page-heading">
+        <div>
+          <span className="section-kicker"><span className="pulse-dot" /> SYSTEM OVERSIGHT</span>
+          <h1>{authenticated ? "Rewards & payout control plane" : "Operator sign-in"}</h1>
+          <p>{authenticated ? "Live treasury liquidity, reward pool controls, real claim and payout logs, and wallet bindings — all server-verified." : "This control plane is gated by a server-side access PIN. Sessions are signed, HttpOnly, Secure and SameSite=Lax."}</p>
+        </div>
+        <span className="admin-admin-badge">ADMIN</span>
+      </section>
+      {authenticated ? <AdminConsole /> : <AdminLogin />}
+      <footer className="admin-footer">CYBERNODE <b>·</b> PROTECTED CONTROL PLANE <span>Payouts settle autonomously through server-side validation and treasury checks.</span></footer>
     </main>
   )
 }

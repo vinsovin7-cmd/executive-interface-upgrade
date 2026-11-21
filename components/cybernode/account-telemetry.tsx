@@ -21,6 +21,8 @@ export function AccountTelemetry({
   networkStatus,
   ledgerCount,
   latestActivityAt,
+  telegramUsername,
+  telegramLinked,
 }: {
   userId: string | null
   email: string | null
@@ -33,6 +35,8 @@ export function AccountTelemetry({
   networkStatus: string
   ledgerCount: number
   latestActivityAt: string | null
+  telegramUsername: string | null
+  telegramLinked: boolean
 }) {
   const [copied, setCopied] = useState("")
   const [platform, setPlatform] = useState("Browser")
@@ -53,8 +57,10 @@ export function AccountTelemetry({
   }
 
   const providerLabel = provider === "google" ? "GOOGLE OAUTH" : provider ? "EMAIL / PASSWORD" : "UNKNOWN"
+  const telegramValue = telegramLinked ? (telegramUsername ? `@${telegramUsername}` : "Linked · no public username") : "Not linked"
   const values = [
     { label: "EMAIL / GMAIL", value: email ?? "Not signed in", copy: email },
+    { label: "TELEGRAM", value: telegramValue, copy: telegramUsername ? `@${telegramUsername}` : null },
     { label: "PROFILE", value: profileName ?? "No display name", copy: null },
     { label: "AUTH PROVIDER", value: providerLabel, copy: null },
     { label: "CLIENT", value: platform, copy: null },

@@ -5,8 +5,8 @@ import type { Database } from "@/lib/supabase/types"
 import { assertActiveSupabaseProjectUrl } from "@/lib/supabase/project"
 
 export function createAdminClient() {
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
+  const url = process.env.SUPABASE_URL?.trim()
+  const key = (process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY)?.trim()
 
   if (!url || !key) throw new Error("Supabase server credentials are not configured")
   assertActiveSupabaseProjectUrl(url)

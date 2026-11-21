@@ -51,7 +51,7 @@ export function AdminTelemetry() {
     <div className="page-stack admin-telemetry-page">
       <section className="notice-card"><ShieldCheck size={18} /><div><strong>Restricted operator view</strong><p>Aggregated metrics only. Account-level activity and callback identifiers are not exposed here.</p></div></section>
       {error ? (
-        <section className="panel admin-error" role="alert"><ShieldCheck size={18} /><div><strong>Telemetry could not be loaded</strong><p>{error.message === "Administrator access required." ? "This page requires the server-assigned app_metadata role 'admin'." : "The protected telemetry service is temporarily unavailable."}</p></div><button type="button" onClick={() => void mutate()}><RefreshCw size={14} />Retry</button></section>
+        <section className="panel admin-error" role="alert"><ShieldCheck size={18} /><div><strong>Telemetry could not be loaded</strong><p>{error.message.toLowerCase().includes("admin authentication") ? "Your admin session expired. Reload /admin and enter the server access PIN again." : "The protected telemetry service is temporarily unavailable."}</p></div><button type="button" onClick={() => void mutate()}><RefreshCw size={14} />Retry</button></section>
       ) : isLoading || !data ? (
         <section className="panel admin-loading" role="status">Loading protected global telemetry…</section>
       ) : (

@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+
+import { adminErrorResponse, requireAdminSession } from "@/lib/admin/session"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 export async function GET() {
-  const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) return NextResponse.json({ error: "Authentication required." }, { status: 401 })
-  if (user.app_metadata?.role !== "admin") {
-    return NextResponse.json({ error: "Administrator access required." }, { status: 403 })
+  try {
+    await requireAdminSession()
+  } catch (error) {
+    return adminErrorResponse(error)
   }
 
-  const { data, error } = await supabase.rpc("get_admin_global_telemetry")
+  const admin = createAdminClient()
+  const { data, error } = await admin.rpc("get_admin_global_telemetry")
   if (error || !data) {
     return NextResponse.json({ error: "Global telemetry is temporarily unavailable." }, { status: 503 })
   }

@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { createClient } from "@/lib/supabase/client"
 
-export function AuthPanel({ open, onClose, initialMessage = "" }: { open: boolean; onClose: () => void; initialMessage?: string }) {
+export function AuthPanel({ open, onClose, initialMessage = "", googleEnabled = true }: { open: boolean; onClose: () => void; initialMessage?: string; googleEnabled?: boolean }) {
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -107,11 +107,13 @@ export function AuthPanel({ open, onClose, initialMessage = "" }: { open: boolea
         <button type="button" aria-pressed={mode === "sign-in"} className={mode === "sign-in" ? "auth-mode-tab auth-mode-tab-active" : "auth-mode-tab"} disabled={busy} onClick={() => { setMode("sign-in"); setMessage("") }}>Sign in</button>
         <button type="button" aria-pressed={mode === "sign-up"} className={mode === "sign-up" ? "auth-mode-tab auth-mode-tab-active" : "auth-mode-tab"} disabled={busy} onClick={() => { setMode("sign-up"); setMessage("") }}>Create account</button>
       </div>
+      {googleEnabled && <>
       <button className="auth-google" type="button" onClick={handleGoogleSignIn} disabled={busy}>
         <svg aria-hidden="true" viewBox="0 0 48 48" focusable="false"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94a11.1 11.1 0 0 1-4.8 7.28l7.73 6C44.38 38.1 46.98 31.94 46.98 24.55Z"/><path fill="#FBBC05" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.13.76-4.59l-7.98-6.2A23.9 23.9 0 0 0 0 24c0 3.88.93 7.55 2.56 10.78l7.97-6.19Z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.9-5.7l-7.73-6c-2.14 1.43-4.88 2.27-8.17 2.27-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48Z"/></svg>
-        {busy ? "Connecting to Google…" : "Continue with Google"}
+        {busy ? "Connecting to Google…" : "Sign in with Google / Gmail"}
       </button>
       <div className="auth-divider"><span>or continue with email</span></div>
+      </>}
       <form className="auth-form" onSubmit={handleSubmit}>
         <label htmlFor="cybernode-email">Email</label>
         <input id="cybernode-email" type="email" autoFocus autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
