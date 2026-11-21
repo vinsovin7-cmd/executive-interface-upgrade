@@ -4,11 +4,10 @@
  * Integrates with Telegram digest dispatcher for server-tracked logging.
  */
 
-import { formatEventMessage } from "./telegram-dispatcher"
+import { formatEventMessage, type TelegramEventType } from "./telegram-dispatcher"
 import { dispatchTelegramDigest } from "./telegram-dispatcher"
 import { formatAtomic } from "@/lib/mining/config"
 import { tonviewerAddressUrl, tonviewerTransactionUrl } from "@/lib/mining/config"
-import { getJson } from "@/lib/supabase/client"
 
 type ShareableReceipt = {
   userId: string
@@ -79,7 +78,7 @@ export async function logAndNotifyEvent(
   await dispatchTelegramDigest([
     {
       chatId: "self",
-      text: formatEventMessage(eventType, payload),
+      text: formatEventMessage(eventType as TelegramEventType, payload),
       parseMode: "HTML",
     },
   ])

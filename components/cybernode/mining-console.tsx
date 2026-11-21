@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import useSWR from "swr"
 import {
-  AlertTriangle, ArrowUpRight, CheckCircle2, Crown, ExternalLink, Gem, Loader2,
-  Lock, ShieldCheck, Sparkles, Unlock, Wallet, Zap,
+  AlertTriangle, ArrowUpRight, CheckCircle2, ChevronRight, Clock, Copy, Crown, ExternalLink, Gem, Loader2,
+  Lock, Megaphone, Share2, ShieldCheck, SkipForward, Sparkles, Unlock, Wallet, X, Zap,
 } from "lucide-react"
 import {
   ASSET_DECIMALS, ASSET_MINIMUMS, MINIMUM_ACCUMULATION_SECONDS, formatAtomic, percentLabel, tonviewerAddressUrl, tonviewerTransactionUrl,
 } from "@/lib/mining/config"
+import { readAdCadence, startAdCycle, type AdCadenceState } from "@/lib/monetization/ad-cadence"
+import { createShareableReceipt, generateReferralUrl } from "@/lib/monetization/shareable-receipt"
+import { dispatchTelegramAlert, formatEventMessage } from "@/lib/monetization/telegram-dispatcher"
 
 type Balance = {
   asset_code: string
@@ -94,7 +97,12 @@ export function MiningConsole({
     refreshInterval: 30_000,
     dedupingInterval: 20_000,
   })
-
+  
+  // Monetization state
+  const [adCadence, setAdCadence] = useState<AdCadenceState | null>(null)
+  const [adSlotStartedAt, setAdSlotStartedAt] = useState<number | null>(null)
+  const [shareReceipt, setShareReceipt] = useState<ReturnType<typeof createShareableReceipt> | null>(null)
+  const [shareCopied, setShareCopied] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState("")
@@ -104,6 +112,12 @@ export function MiningConsole({
     const timer = window.setInterval(() => setNow(Date.now()), 1_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  // Read the server-tracked 30-minute ad/engagement cadence on mount + every
+  // clock tick so the cooldown countdown and ad-slot state stay in sync.
+  useEffect(() => {
+    setAdCadence(readAdCadence())
+  }, [now])
 
   const mining = data?.mining
   const minimumSeconds = mining?.minimumAccumulationSeconds ?? MINIMUM_ACCUMULATION_SECONDS
@@ -200,6 +214,39 @@ export function MiningConsole({
         confirmed: Boolean(payout.confirmed),
       })
       setMessage(payout.message ?? "On-chain payout broadcast.")
+      
+      // Generate shareable receipt + broadcast via Telegram for proof loop
+      try {
+        const referralUrl = generateReferralUrl(
+          userId ?? "guest",
+          payout.assetCode,
+          payout.amountAtomic,
+        )
+        const share = createShareableReceipt(
+          userId ?? "guest",
+          mining.walletAddress,
+          payout.assetCode,
+          payout.amountAtomic,
+          payout.transactionHash,
+          payout.tonviewerUrl,
+          referralUrl,
+          new Date().toISOString(),
+        )
+        setShareReceipt(share)
+        void dispatchTelegramAlert({
+          chatId: "self",
+          text: formatEventMessage("withdrawal_broadcast", {
+            userId: userId ?? "anonymous",
+            asset: payout.assetCode,
+            amountAtomic: payout.amountAtomic,
+            transactionHash: payout.transactionHash,
+          }),
+          parseMode: "HTML",
+        })
+      } catch {
+        // Share/telemetry is best-effort; never block payout UX.
+      }
+
       await mutate()
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : "Withdrawal could not be completed.")
@@ -209,6 +256,65 @@ export function MiningConsole({
   }
 
   const treasury = state?.treasury ?? null
+
+  const adSlotRemaining = adSlotStartedAt ? Math.max(0, 30 - Math.floor((now - adSlotStartedAt) / 1000)) : 0
+
+  const startAdEngagement = () => {
+    const { nextAllowedAt } = startAdCycle()
+    setAdSlotStartedAt(Date.now())
+    setAdCadence(readAdCadence())
+    void dispatchTelegramAlert({
+      chatId: "self",
+      text: formatEventMessage("ad_cycle_started", { userId: userId ?? "anonymous", nextAllowedAt: new Date(nextAllowedAt).toISOString() }),
+      parseMode: "HTML",
+    })
+  }
+
+  const completeAdSlot = () => {
+    setAdSlotStartedAt(null)
+    setAdCadence(readAdCadence())
+    void dispatchTelegramAlert({
+      chatId: "self",
+      text: formatEventMessage("ad_cycle_completed", { userId: userId ?? "anonymous", asset: "GRAM" }),
+      parseMode: "HTML",
+    })
+  }
+
+  const skipAdSlot = () => {
+    setAdSlotStartedAt(null)
+    setAdCadence(readAdCadence())
+    void dispatchTelegramAlert({
+      chatId: "self",
+      text: formatEventMessage("ad_skipped", { userId: userId ?? "anonymous" }),
+      parseMode: "HTML",
+    })
+  }
+
+  const closeAdCycle = () => {
+    setAdSlotStartedAt(null)
+    setAdCadence(readAdCadence())
+    void dispatchTelegramAlert({
+      chatId: "self",
+      text: formatEventMessage("ad_closed", { userId: userId ?? "anonymous" }),
+      parseMode: "HTML",
+    })
+  }
+
+  const copyShareReceipt = async () => {
+    if (!shareReceipt) return
+    try {
+      await navigator.clipboard.writeText(shareReceipt.message)
+      setShareCopied(true)
+      window.setTimeout(() => setShareCopied(false), 2_000)
+      void dispatchTelegramAlert({
+        chatId: "self",
+        text: formatEventMessage("referral_shared", { userId: userId ?? "anonymous", asset: shareReceipt.assetCode }),
+        parseMode: "HTML",
+      })
+    } catch {
+      // Clipboard permission denied — receipt remains view-only.
+    }
+  }
 
   return (
     <section className="mining-console panel" aria-labelledby="mining-console-title">
@@ -291,6 +397,48 @@ export function MiningConsole({
             </div>
           )}
 
+          <div className="mining-treasury">
+            <div className="mining-treasury-head">
+              <span className="eyebrow"><Megaphone size={12} /> 30-MINUTE ENGAGEMENT CYCLE</span>
+              {adCadence?.isCooldownActive ? (
+                <span className="mining-badge is-warn"><Clock size={13} /> COOLDOWN · {adCadence ? formatCountdown(adCadence.secondsRemaining) : "--:--"}</span>
+              ) : (
+                <span className="mining-badge is-ready"><CheckCircle2 size={13} /> SLOT AVAILABLE</span>
+              )}
+            </div>
+            <p className="muted-copy">
+              Server-tracked cadence: every 30 minutes one 30-second sponsored slot unlocks. Next / Skip / Close interactions are logged as engagement events — no synthetic payouts are credited.
+            </p>
+            {adSlotStartedAt ? (
+              <div className="mining-ad-slot" role="timer">
+                <span className="micro-label">SPONSORED SLOT · 30s</span>
+                <strong className="mono">{formatCountdown(adSlotRemaining)}</strong>
+                <div className="mining-ad-actions">
+                  <button type="button" className="mining-primary" onClick={completeAdSlot} disabled={adSlotRemaining > 0}>
+                    <ChevronRight size={14} /> {adSlotRemaining > 0 ? "Next" : "Claim cycle"}
+                  </button>
+                  <button type="button" className="mining-primary" onClick={skipAdSlot} title="Skip the current sponsored slot">
+                    <SkipForward size={14} /> Skip
+                  </button>
+                  <button type="button" className="mining-primary" onClick={closeAdCycle} aria-label="Close ad slot" title="Close">
+                    <X size={14} /> Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mining-ad-idle">
+                <button
+                  type="button"
+                  className="mining-primary"
+                  onClick={startAdEngagement}
+                  disabled={Boolean(adCadence?.isCooldownActive)}
+                >
+                  <Megaphone size={14} /> {adCadence?.isCooldownActive ? `Next slot in ${adCadence ? formatCountdown(adCadence.secondsRemaining) : "--:--"}` : "Start engagement cycle"}
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="mining-balances">
             {(data?.balances ?? []).map((balance) => {
               const decimals = ASSET_DECIMALS[balance.asset_code] ?? 9
@@ -354,6 +502,18 @@ export function MiningConsole({
                 <code className="mono">{receipt.transactionHash}</code>
                 <a href={receipt.tonviewerUrl} target="_blank" rel="noreferrer">Inspect on Tonviewer <ExternalLink size={12} /></a>
               </div>
+              {shareReceipt && (
+                <div className="mining-share-receipt" role="status">
+                  <div className="mining-treasury-head">
+                    <span className="eyebrow"><Share2 size={12} /> SHAREABLE PROOF</span>
+                    <button type="button" className="mining-primary" onClick={copyShareReceipt}>
+                      <Copy size={13} /> {shareCopied ? "Copied" : "Copy receipt"}
+                    </button>
+                  </div>
+                  <pre className="mining-share-text mono">{shareReceipt.message}</pre>
+                  <a href={shareReceipt.tonviewerUrl} target="_blank" rel="noreferrer">Verify on Tonviewer <ExternalLink size={11} /></a>
+                </div>
+              )}
             </div>
           )}
           {message && <p className="mining-message" role="status"><Zap size={13} /> {message}</p>}

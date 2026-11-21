@@ -6,7 +6,7 @@ import {
   Cpu, Gauge, HardDrive, LayoutDashboard, LogOut, Menu, Network, Radio, Settings, ShieldCheck, Sparkles,
   Wallet, X, Zap,
 } from "lucide-react"
-import { TonConnectButton, useTonAddress, useTonWallet } from "@tonconnect/ui-react"
+import { TonConnectButton, useTonAddress, useTonWallet, useTonConnectUI } from "@tonconnect/ui-react"
 import { AuthPanel } from "@/components/cybernode/auth-panel"
 import { AccountTelemetry } from "@/components/cybernode/account-telemetry"
 import { TelegramAccountLink } from "@/components/cybernode/telegram-account-link"
@@ -122,6 +122,7 @@ export function Dashboard({ userId, userEmail, profileEmail, authProvider, profi
   const [walletSaveMessage, setWalletSaveMessage] = useState("")
   const address = useTonAddress()
   const wallet = useTonWallet()
+  const [tonConnectUI] = useTonConnectUI()
   const walletChain = wallet ? String(wallet.account.chain) : null
   const networkLabel = walletChain === "-239" ? "MAINNET" : walletChain === "-3" ? "TESTNET" : wallet ? "NETWORK UNKNOWN" : "MAINNET TARGET"
   const networkStatus = walletChain === "-239" ? "CONNECTED · MAINNET" : walletChain === "-3" ? "CONNECTED · TESTNET" : wallet ? "CONNECTED · UNKNOWN NETWORK" : "MAINNET TARGET · NOT CONNECTED"
@@ -133,16 +134,17 @@ export function Dashboard({ userId, userEmail, profileEmail, authProvider, profi
     if (!address) return
     // Sync connected wallet to dashboard state
     setSavedWalletAddress(address)
-    // Clear any Keeper "Continue in Keeper" modal by forcing re-connect check
-    const existingSW = sessionStorage.getItem("tonkeeper_closing_done")
-    if (!existingSW) {
-      // Small delay to let TON Connect finish settling
-      const timer = setTimeout(() => {
-        sessionStorage.setItem("tonkeeper_closing_done", "1")
-      }, 500)
-      return () => clearTimeout(timer)
+    // Auto-close the Keeper/TON Connect modal once the wallet is connected.
+    // This prevents the "Continue in Keeper on desktop…" spinner from staying
+    // visible after a successful or restored connection.
+    try {
+      tonConnectUI.modal.close()
+    } catch {
+      // Modal may not be available during early hydration — safe to ignore.
     }
-  }, [address])
+    // Mark hard-reload wallet session as synced so state is shared across tabs.
+    sessionStorage.setItem("tonkeeper_closing_done", "1")
+  }, [address, tonConnectUI])
 
   // Persist wallet across hard reload (Ctrl+Shift+R) using sessionStorage + localStorage
   useEffect(() => {

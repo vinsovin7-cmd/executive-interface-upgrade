@@ -34,7 +34,7 @@ export function readAdCadence(): AdCadenceState {
       secondsRemaining,
     }
   } catch {
-    return { lastCadenceAt: null, nextAllowedAt: null, isCooldownActive: false, secondsRemaining: 0 }
+    return { lastCycleAt: null, nextAllowedAt: null, isCooldownActive: false, secondsRemaining: 0 }
   }
 }
 
