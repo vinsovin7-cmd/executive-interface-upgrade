@@ -116,7 +116,7 @@ export function LiveTonTelemetry({
           <h3 id="ton-telemetry-title">Live on-chain telemetry</h3>
         </div>
         <span className="sample-tag" aria-live="polite">
-          {error ? "SOURCE UNAVAILABLE" : isLoading ? "SYNCING" : mainnetLive ? "LIVE · READ ONLY" : "INDEXER DELAYED"}
+          {error ? "ON-CHAIN FEED TEMPORARILY UNAVAILABLE" : isLoading ? "LOADING CHAIN SNAPSHOT" : mainnetLive ? "LIVE · READ ONLY" : "INDEXER SNAPSHOT DELAYED"}
         </span>
       </div>
 

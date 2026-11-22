@@ -206,7 +206,16 @@ export async function POST(request: Request) {
       || error.message.startsWith("Enter a positive amount")
       || error.message.startsWith("This asset supports")
     )
-    const message = invalidInput ? error.message : "Your request could not be saved. Please try again."
+    // Surface the real cause (insufficient balance, unlock not reached, missing
+    // treasury/signer configuration, RPC error) instead of a dead-end generic
+    // message, while falling back to a safe default when no detail is available.
+    const detail =
+      error instanceof Error
+        ? error.message
+        : error && typeof error === "object" && "message" in error
+          ? String((error as { message: unknown }).message)
+          : null
+    const message = detail && detail.trim() ? detail : "Your request could not be saved. Please try again."
     return NextResponse.json({ error: message }, { status: invalidInput ? 400 : 503 })
   }
 }
