@@ -99,7 +99,7 @@ begin
   end if;
   select * into v_rule from public.reward_rules where event_type = p_event_type;
   if not found then return 0; end if;
-  select user_share_bps into v_user_bps from public.reward_split_config where id;
+  select user_share_bps into v_user_bps from public.reward_split_config rsc where rsc.id;
   if v_user_bps is null then v_user_bps := 10000; end if;
 
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_user_id::text || ':' || v_rule.asset_code, 0));
@@ -173,7 +173,7 @@ begin
   end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_user_id::text || ':' || p_asset_code, 0));
 
-  select minimum_accumulation_seconds into v_lock from public.reward_split_config where id;
+  select minimum_accumulation_seconds into v_lock from public.reward_split_config rsc where rsc.id;
   if v_lock is null then v_lock := 600; end if;
   select started_at into v_started from public.mining_sessions where user_id = p_user_id and status = 'active';
   if v_started is null or now() < v_started + (v_lock::text || ' seconds')::interval then
@@ -256,7 +256,7 @@ begin
     return;
   end if;
 
-  select minimum_accumulation_seconds into v_lock from public.reward_split_config where id;
+  select minimum_accumulation_seconds into v_lock from public.reward_split_config rsc where rsc.id;
   if v_lock is null then v_lock := 600; end if;
   select started_at into v_started from public.mining_sessions
   where user_id = p_user_id and status = 'active';
@@ -330,7 +330,7 @@ declare
   v_session public.mining_sessions%rowtype;
 begin
   if v_user is null then raise exception 'authentication required' using errcode = '42501'; end if;
-  select minimum_accumulation_seconds into v_lock from public.reward_split_config where id;
+  select minimum_accumulation_seconds into v_lock from public.reward_split_config rsc where rsc.id;
   if v_lock is null then v_lock := 600; end if;
   select * into v_session from public.mining_sessions where user_id = v_user;
   if not found then

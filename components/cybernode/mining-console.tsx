@@ -7,7 +7,7 @@ import {
   Lock, Megaphone, Share2, ShieldCheck, SkipForward, Sparkles, Unlock, Wallet, X, Zap,
 } from "lucide-react"
 import {
-  ASSET_DECIMALS, ASSET_MINIMUMS, MINIMUM_ACCUMULATION_SECONDS, formatAtomic, percentLabel, tonviewerAddressUrl, tonviewerTransactionUrl,
+  ASSET_DECIMALS, ASSET_MINIMUMS, MINIMUM_ACCUMULATION_SECONDS, UNLOCK_THRESHOLD_SECONDS, formatAtomic, percentLabel, tonviewerAddressUrl, tonviewerTransactionUrl,
 } from "@/lib/mining/config"
 import { readAdCadence, startAdCycle, type AdCadenceState } from "@/lib/monetization/ad-cadence"
 import { createShareableReceipt, generateReferralUrl } from "@/lib/monetization/shareable-receipt"
@@ -107,6 +107,11 @@ export function MiningConsole({
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState("")
   const [receipt, setReceipt] = useState<PayoutReceipt | null>(null)
+  const [lastWithdrawAt, setLastWithdrawAt] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null
+    const stored = window.localStorage.getItem("cybernode_last_withdraw_at")
+    return stored ? Number.parseInt(stored, 10) : null
+  })
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1_000)
@@ -137,7 +142,19 @@ export function MiningConsole({
     return Math.max(0, Math.floor((now - startedAt) / 1000))
   }, [mining, now])
 
+  // 7-rainbow accrual measures from the later of session start or the last
+  // withdrawal, so the rainbow unlock resets after each payout while accrual
+  // continues if the user chooses not to withdraw immediately.
+  const rainbowElapsedSeconds = useMemo(() => {
+    if (!mining?.startedAt) return 0
+    const startedAt = new Date(mining.startedAt).getTime()
+    if (Number.isNaN(startedAt)) return 0
+    const baseline = lastWithdrawAt && lastWithdrawAt > startedAt ? lastWithdrawAt : startedAt
+    return Math.max(0, Math.floor((now - baseline) / 1000))
+  }, [mining, lastWithdrawAt, now])
+
   const unlocked = Boolean(mining && mining.walletAddress && secondsRemaining <= 0)
+  const is7RainbowUnlocked = Boolean(mining && mining.walletAddress && rainbowElapsedSeconds >= UNLOCK_THRESHOLD_SECONDS)
   const progress = Math.min(100, Math.round((elapsedSeconds / minimumSeconds) * 100))
 
   const bindWallet = async () => {
@@ -169,8 +186,8 @@ export function MiningConsole({
   const autoBoundRef = useRef<string | null>(null)
   const [autoBinding, setAutoBinding] = useState(false)
   useEffect(() => {
-    if (!userId || !walletAddress || !data) return
-    if (data.mining.walletAddress === walletAddress) return
+    if (!userId || !walletAddress) return
+    if (data?.mining?.walletAddress === walletAddress) return
     if (busy === "bind" || autoBoundRef.current === walletAddress) return
     autoBoundRef.current = walletAddress
     setAutoBinding(true)
@@ -179,8 +196,8 @@ export function MiningConsole({
   }, [userId, walletAddress, data, busy])
   
   useEffect(() => {
-    if (autoBinding && walletAddress && !data?.mining.walletAddress) {
-      // Auto-binding completed successfully
+    if (autoBinding && walletAddress && data?.mining?.walletAddress === walletAddress) {
+      // Auto-binding completed successfully — walletAddress is now bound on-chain
       setAutoBinding(false)
     }
   }, [autoBinding, walletAddress, data?.mining?.walletAddress])
@@ -223,6 +240,8 @@ export function MiningConsole({
         amountAtomic: payout.amountAtomic,
         confirmed: Boolean(payout.confirmed),
       })
+      setLastWithdrawAt(Date.now())
+      try { window.localStorage.setItem("cybernode_last_withdraw_at", String(Date.now())) } catch { /* private mode */ }
       setMessage(payout.message ?? "On-chain payout broadcast.")
       
       // Generate shareable receipt + broadcast via Telegram for proof loop
@@ -335,7 +354,7 @@ export function MiningConsole({
           <h3 id="mining-console-title">Private mining suite</h3>
         </div>
         <span className="sample-tag" aria-live="polite">
-          {isLoading ? "SYNCING" : mining?.walletAddress ? (unlocked ? "MINING · UNLOCKED" : "MINING · ACCRUING") : "WALLET NOT BOUND"}
+          {isLoading ? "SYNCING" : mining?.walletAddress ? (is7RainbowUnlocked ? "7-RAINBOW UNLOCKED" : unlocked ? "MINING · ACTIVE" : "MINING · ACCRUING") : "WALLET NOT BOUND"}
         </span>
       </div>
 
@@ -372,13 +391,17 @@ export function MiningConsole({
                   <>
                     <Clock size={14} /> Auto-activating mining…
                   </>
+                ) : is7RainbowUnlocked ? (
+                  <>
+                    <Sparkles size={14} /> 7-Rainbow unlocked · ready to withdraw
+                  </>
                 ) : unlocked ? (
                   <>
                     <CheckCircle2 size={14} /> Mining session active
                   </>
                 ) : (
                   <>
-                    <AlertTriangle size={14} /> No mainnet wallet connected
+                    <AlertTriangle size={14} /> Connected · awaiting unlock
                   </>
                 )}
               </span>
@@ -408,7 +431,7 @@ export function MiningConsole({
           {mining?.walletAddress && (
             <div className="mining-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label="Accumulation progress">
               <span style={{ width: `${progress}%` }} />
-              <i className="mining-progress-label">{unlocked ? "Accumulation complete" : `${minimumSeconds - secondsRemaining}s of ${minimumSeconds}s accrued`}</i>
+              <i className="mining-progress-label">{is7RainbowUnlocked ? "7-rainbow unlocked · ready to withdraw to Keeper" : unlocked ? "Accumulation complete" : `${minimumSeconds - secondsRemaining}s of ${minimumSeconds}s accrued`}</i>
             </div>
           )}
 
@@ -475,10 +498,10 @@ export function MiningConsole({
                     className="mining-primary mining-withdraw"
                     disabled={!canWithdraw || busy === balance.asset_code}
                     onClick={() => withdrawAll(balance)}
-                    title={!mining?.walletAddress ? "Bind a wallet first" : !unlocked ? "Unlocks after the 600s accumulation" : !eligible ? "Below the minimum withdrawal" : `Withdraw ${balance.asset_code} to your bound wallet`}
+                    title={!mining?.walletAddress ? "Bind a wallet first" : is7RainbowUnlocked ? "7-rainbow unlocked · Withdraw to Keeper" : !unlocked ? "Unlocks after the 600s accumulation" : !eligible ? "Below the minimum withdrawal" : `Withdraw ${balance.asset_code} to your bound wallet`}
                   >
-                    {busy === balance.asset_code ? <Loader2 size={14} className="spin" /> : unlocked ? <ArrowUpRight size={14} /> : <Lock size={14} />}
-                    {unlocked ? "Withdraw to Tonkeeper" : "Locked"}
+                    {busy === balance.asset_code ? <Loader2 size={14} className="spin" /> : is7RainbowUnlocked ? <Sparkles size={14} /> : unlocked ? <ArrowUpRight size={14} /> : <Lock size={14} />}
+                    {is7RainbowUnlocked ? "Withdraw to Keeper" : unlocked ? "Withdraw to Tonkeeper" : "Locked"}
                   </button>
                 </article>
               )

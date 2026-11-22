@@ -607,6 +607,28 @@ button, .settings-action, .settings-quiet, .admin-console-actions button,
 .help-description { color: #a6b4c0; font-size: 0.875rem; line-height: 1.65; }
 body.cybernode-drawer-open { overflow:hidden !important; touch-action:none; }
 
+/* Collapsible / Expandable Sections — clean toggle drawers for secondary details */
+.collapsible { border: 1px solid #242f3b; border-radius: 10px; background: linear-gradient(165deg, #0d141c, #0b1119); overflow: hidden; }
+.collapsible-trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 14px 18px; border: none; background: transparent; color: #e2edf2; font-size: 0.9375rem; font-weight: 600; text-align: left; cursor: pointer; transition: background .14s ease; }
+.collapsible-trigger:hover { background: rgba(98, 229, 213, 0.06); }
+.collapsible-trigger:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; border-radius: 10px; }
+.collapsible-chevron { display: inline-flex; flex-shrink: 0; width: 18px; height: 18px; color: #8ad4c6; transition: transform .22s cubic-bezier(.2,.8,.2,1); }
+.collapsible[open] .collapsible-chevron { transform: rotate(180deg); }
+.collapsible-panel { overflow: hidden; max-height: 0; transition: max-height .32s cubic-bezier(.2,.8,.2,1), padding .22s ease; }
+.collapsible[open] .collapsible-panel { max-height: 1200px; padding: 0 18px 18px; }
+.collapsible-content { display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
+.collapsible-content .readiness-list, .collapsible-content .readiness-card, .collapsible-content .readiness-footer { animation: collapsibleFadeIn .28s ease forwards; }
+@keyframes collapsibleFadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .collapsible-panel { transition: none; }
+  .collapsible[open] .collapsible-panel { max-height: none; }
+  .collapsible-chevron { transition: none; }
+  .collapsible-content .readiness-list, .collapsible-content .readiness-card, .collapsible-content .readiness-footer { animation: none; }
+}
+
+/* Smooth mobile scroll for collapsible content */
+.collapsible-panel { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+
 @media (max-width: 580px) {
   .cyber-node-header { align-items: flex-start; flex-direction: column; gap: 8px; }
   .cyber-node-reset-btn { align-self: flex-start; }
