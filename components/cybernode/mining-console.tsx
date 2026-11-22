@@ -158,6 +158,7 @@ export function MiningConsole({
       setMessage(cause instanceof Error ? cause.message : "Wallet could not be bound.")
     } finally {
       setBusy(null)
+      setAutoBinding(false)
     }
   }
 
@@ -166,14 +167,23 @@ export function MiningConsole({
   // extra click. The 600-second accumulation clock starts on this bind, so the
   // session/AdsGram/multi-asset accrual begins the moment the user is online.
   const autoBoundRef = useRef<string | null>(null)
+  const [autoBinding, setAutoBinding] = useState(false)
   useEffect(() => {
     if (!userId || !walletAddress || !data) return
     if (data.mining.walletAddress === walletAddress) return
     if (busy === "bind" || autoBoundRef.current === walletAddress) return
     autoBoundRef.current = walletAddress
+    setAutoBinding(true)
     void bindWallet()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, walletAddress, data, busy])
+  
+  useEffect(() => {
+    if (autoBinding && walletAddress && !data?.mining.walletAddress) {
+      // Auto-binding completed successfully
+      setAutoBinding(false)
+    }
+  }, [autoBinding, walletAddress, data?.mining?.walletAddress])
 
   const withdrawAll = async (balance: Balance) => {
     if (!mining?.walletAddress) return
@@ -356,19 +366,24 @@ export function MiningConsole({
                 </a>
               )}
             </div>
-            {mining?.walletAddress ? (
-              <span className="mining-badge"><CheckCircle2 size={14} /> Mining session active</span>
+            {walletAddress ? (
+              <span className="mining-badge">
+                {autoBinding ? (
+                  <>
+                    <Clock size={14} /> Auto-activating mining…
+                  </>
+                ) : unlocked ? (
+                  <>
+                    <CheckCircle2 size={14} /> Mining session active
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle size={14} /> No mainnet wallet connected
+                  </>
+                )}
+              </span>
             ) : (
-              <button
-                type="button"
-                className="mining-primary"
-                disabled={!walletAddress || busy === "bind"}
-                onClick={bindWallet}
-                title={walletAddress ? undefined : "Connect Tonkeeper or another TON wallet first"}
-              >
-                {busy === "bind" ? <Loader2 size={15} className="spin" /> : <Wallet size={15} />}
-                {walletAddress ? "Bind wallet & activate mining" : "Connect a TON wallet first"}
-              </button>
+              <span className="mining-badge"><AlertTriangle size={14} /> No mainnet wallet connected</span>
             )}
           </div>
 
