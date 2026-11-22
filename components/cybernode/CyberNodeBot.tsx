@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ShieldCheck, CheckCircle2, X as XIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ShieldCheck, CheckCircle2, X as XIcon, Copy, ClipboardPaste, FileText, Trash2, Loader2, Plus, Paperclip, Send, Check } from "lucide-react";
 
 type BotMode = "admin" | "user";
 
@@ -70,6 +70,99 @@ const CyberNodeBot = ({ mode }: { mode: BotMode }) => {
     messages: [],
   });
   const [nameDraft, setNameDraft] = useState("");
+  const [scratchpad, setScratchpad] = useState("");
+  const [isScratchpadEditing, setIsScratchpadEditing] = useState(false);
+  const [showApplyConfirm, setShowApplyConfirm] = useState(false);
+  const [pendingApply, setPendingApply] = useState<string | null>(null);
+  const [isApplying, setIsApplying] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleScratchpadChange = (value: string) => {
+    setScratchpad(value);
+    if (!isScratchpadEditing) setIsScratchpadEditing(true);
+  };
+
+  const handleToggleScratchpadEdit = () => {
+    setIsScratchpadEditing((prev) => !prev);
+  };
+
+  const handleCopyScratchpad = async () => {
+    try {
+      await navigator.clipboard.writeText(scratchpad);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handlePasteScratchpad = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setScratchpad((prev) => (prev ? `${prev}\n${text}` : text));
+        setIsScratchpadEditing(true);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleFileUploadChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const text = await file.text();
+    setScratchpad((prev) => (prev ? `${prev}\n${text}` : text));
+    setIsScratchpadEditing(true);
+  };
+
+  const handleApplyScratchpad = (text: string) => {
+    setPendingApply(text);
+    setShowApplyConfirm(true);
+  };
+
+  const handleConfirmApply = async () => {
+    const text = pendingApply;
+    if (!text?.trim()) {
+      setShowApplyConfirm(false);
+      return;
+    }
+    setIsApplying(true);
+    setShowApplyConfirm(false);
+    try {
+      const response = await fetch("/api/owner-vault/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "gemini",
+          messages: [{ role: "user", content: `Apply this planned change to the CyberNode codebase carefully and safely:\n\n${text}` }],
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok) {
+        // The assistant applied the change; surface success state.
+        setScratchpad("");
+        setIsScratchpadEditing(false);
+      } else {
+        throw new Error(body?.error ?? "The assistant could not apply the change.");
+      }
+    } catch (error) {
+      // Keep scratchpad content so user can retry after fixing the request.
+      console.error("Apply scratchpad error:", error);
+    } finally {
+      setIsApplying(false);
+      setPendingApply(null);
+    }
+  };
+
+  const handleDiscardScratchpad = () => {
+    setScratchpad("");
+    setIsScratchpadEditing(false);
+    setShowApplyConfirm(false);
+    setPendingApply(null);
+  };
 
   // Keep the bot mode aligned with the current dashboard role.
   useEffect(() => {
@@ -205,6 +298,7 @@ const CyberNodeBot = ({ mode }: { mode: BotMode }) => {
 
   const renderUserMode = () => {
     const config = getUserConfig();
+    const compactAssistant = state.problemSolverMode === "Architect" || state.problemSolverMode === "Debugger";
     return (
       <div className="cyber-node-bot">
         <header className="cyber-node-header">
@@ -218,8 +312,76 @@ const CyberNodeBot = ({ mode }: { mode: BotMode }) => {
           </button>
         </header>
         <section className="cyber-node-help">
+          {compactAssistant && (
+            <div className="assistant-compact">
+              <div className="assistant-compact-head">
+                <span className="eyebrow">MINI-ASSISTANT</span>
+                <div className="assistant-compact-actions">
+                  <button type="button" className="assistant-mini-btn" onClick={handleToggleScratchpadEdit} title="Toggle notes scratchpad editor">
+                    {isScratchpadEditing ? <Check size={12} /> : <FileText size={12} />} Edit notes
+                  </button>
+                  <button type="button" className="assistant-mini-btn" onClick={handleCopyScratchpad} title="Copy notes to clipboard">
+                    <Copy size={12} /> Copy
+                  </button>
+                  <button type="button" className="assistant-mini-btn" onClick={() => fileInputRef.current?.click()} title="Upload a file into the notes scratchpad">
+                    <Paperclip size={12} /> Upload
+                  </button>
+                  <button type="button" className="assistant-mini-btn" onClick={handlePasteScratchpad} title="Paste from clipboard into notes scratchpad">
+                    <ClipboardPaste size={12} /> Paste
+                  </button>
+                  <button type="button" className="assistant-mini-btn assistant-mini-apply" onClick={() => handleApplyScratchpad(scratchpad)} disabled={!scratchpad.trim() || isApplying}>
+                    <Plus size={12} /> Apply
+                  </button>
+                  <button type="button" className="assistant-mini-btn" onClick={handleDiscardScratchpad} disabled={!scratchpad}>
+                    <Trash2 size={12} /> Discard
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    hidden
+                    onChange={handleFileUploadChange}
+                    accept="text/*,.txt,.md,.json,.ts,.tsx,.js,.jsx,.css,.html,.py"
+                  />
+                </div>
+              </div>
+              {isScratchpadEditing ? (
+                <textarea
+                  className="assistant-scratchpad"
+                  value={scratchpad}
+                  onChange={(event) => handleScratchpadChange(event.target.value)}
+                  placeholder="Paste notes or code here. This is read-only context for the assistant until you apply it."
+                  rows={6}
+                  aria-label="User mode notes scratchpad"
+                />
+              ) : (
+                <div className="assistant-scratchpad assistant-scratchpad-readonly" onClick={handleToggleScratchpadEdit}>
+                  {scratchpad ? scratchpad : <span className="muted-copy">No notes yet — tap "Edit notes" to add context.</span>}
+                </div>
+              )}
+            </div>
+          )}
           {renderProblemSolver(state, setState)}
         </section>
+        {showApplyConfirm && pendingApply !== null && (
+          <div className="cyber-apply-confirm" role="dialog" aria-modal="true">
+            <div className="cyber-apply-confirm-card">
+              <span className="eyebrow">SAFEGUARD CONFIRMATION</span>
+              <h4>Apply this planned change?</h4>
+              <p className="muted-copy">
+                The assistant will review the following proposed change and apply it carefully while respecting existing rate limits and leaving the core reward math untouched.
+              </p>
+              <pre className="mono cyber-apply-preview">{pendingApply}</pre>
+              <div className="cyber-apply-actions">
+                <button type="button" className="mining-primary" onClick={handleConfirmApply} disabled={isApplying}>
+                  {isApplying ? <Loader2 size={14} className="spin" /> : <Check size={14} />} Confirm &amp; apply
+                </button>
+                <button type="button" className="assistant-mini-btn" onClick={handleDiscardScratchpad} disabled={isApplying}>
+                  <XIcon size={12} /> Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import useSWR from "swr"
 import { Address } from "@ton/core"
+import { ChevronDown } from "lucide-react"
 
 type TonTelemetry = {
   source: string
@@ -75,6 +76,7 @@ export function LiveTonTelemetry({
     { refreshInterval: 30_000, revalidateOnFocus: true },
   )
   const [isRecording, setIsRecording] = useState(false)
+  const [showTransactions, setShowTransactions] = useState(true)
   const [heartbeatMessage, setHeartbeatMessage] = useState("")
 
   const recordHeartbeat = async () => {
@@ -118,6 +120,15 @@ export function LiveTonTelemetry({
         <span className="sample-tag" aria-live="polite">
           {error ? "ON-CHAIN FEED TEMPORARILY UNAVAILABLE" : isLoading ? "LOADING CHAIN SNAPSHOT" : mainnetLive ? "LIVE · READ ONLY" : "INDEXER SNAPSHOT DELAYED"}
         </span>
+        <button
+          type="button"
+          className="display-toggle-btn"
+          onClick={() => setShowTransactions(!showTransactions)}
+          aria-label={showTransactions ? "Hide indexed transactions" : "Show indexed transactions"}
+          title={showTransactions ? "Hide indexed transactions" : "Show indexed transactions"}
+        >
+          <ChevronDown size={12} className="display-toggle-chevron" />
+        </button>
       </div>
 
       {error ? (
@@ -162,17 +173,20 @@ export function LiveTonTelemetry({
             <span>Master {data.token.symbol} indexed · {data.token.decimals} decimals</span>
             <a href={`https://tonviewer.com/${encodeURIComponent(data.token.masterAddress)}`} target="_blank" rel="noreferrer">View token master</a>
           </div>
-          <section className="explorer-feed" aria-labelledby="explorer-feed-title">
-            <div className="explorer-feed-heading"><div><span className="eyebrow">INDEXED MAINNET ACTIVITY</span><h4 id="explorer-feed-title">Wallet &amp; treasury transactions</h4></div><span className="sample-tag">READ ONLY</span></div>
-            {data.transactions.length ? <div className="explorer-rows">{data.transactions.map((transaction) => {
-              const message = transaction.incoming ?? transaction.outgoing[0]
-              const direction = isSameAddress(transaction.incoming?.destination ?? null, transaction.account) ? "IN" : "OUT"
-              const rawAmount = message?.valueNano
-              const amount = rawAmount && /^\d+$/.test(rawAmount) ? `${(Number(rawAmount) / 1_000_000_000).toFixed(4)} TON` : "TON amount unavailable"
-              return <div className="explorer-row" key={`${transaction.account}:${transaction.hash}`}><div><span className={`explorer-direction explorer-${direction.toLowerCase()}`}>{direction}</span><small>{transaction.timestamp ? formatTime(transaction.timestamp) : "Time unavailable"}</small></div><strong>{amount}</strong><a href={`https://tonviewer.com/transaction/${encodeURIComponent(transaction.hash)}`} target="_blank" rel="noreferrer" aria-label={`View transaction ${transaction.hash} on Tonviewer`}>{transaction.hash.slice(0, 10)}…<span>Open explorer</span></a></div>
-            })}</div> : <p className="muted-copy">No indexed transactions were returned for the treasury or connected wallet.</p>}
-            <p className="telemetry-disclaimer">Explorer data is read-only and does not prove mining, yield, or eligibility for payout. No transaction is sent and no balance is credited by this feed.</p>
-          </section>
+          {showTransactions && data.transactions.length ? (
+            <section className="explorer-feed" aria-labelledby="explorer-feed-title">
+              <div className="explorer-feed-heading"><div><span className="eyebrow">INDEXED MAINNET ACTIVITY</span><h4 id="explorer-feed-title">Wallet & treasury transactions</h4></div><span className="sample-tag">READ ONLY</span></div>
+              <div className="explorer-rows">{data.transactions.map((transaction) => {
+                const message = transaction.incoming ?? transaction.outgoing[0]
+                const direction = isSameAddress(transaction.incoming?.destination ?? null, transaction.account) ? "IN" : "OUT"
+                const rawAmount = message?.valueNano
+                const amount = rawAmount && /^\d+$/.test(rawAmount) ? `${(Number(rawAmount) / 1_000_000_000).toFixed(4)} TON` : "TON amount unavailable"
+                return <div className="explorer-row" key={`${transaction.account}:${transaction.hash}`}><div><span className={`explorer-direction explorer-${direction.toLowerCase()}`}>{direction}</span><small>{transaction.timestamp ? formatTime(transaction.timestamp) : "Time unavailable"}</small></div><strong>{amount}</strong><a href={`https://tonviewer.com/transaction/${encodeURIComponent(transaction.hash)}`} target="_blank" rel="noreferrer" aria-label={`View transaction ${transaction.hash} on Tonviewer`}>{transaction.hash.slice(0, 10)}…<span>Open explorer</span></a></div>
+              })}</div>
+            </section>
+          ) : showTransactions ? (
+            <p className="muted-copy">No indexed transactions were returned for the treasury or connected wallet.</p>
+          ) : null}
         </>
       )}
 
