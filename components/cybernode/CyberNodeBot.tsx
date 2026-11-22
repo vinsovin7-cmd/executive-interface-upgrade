@@ -69,38 +69,41 @@ const CyberNodeBot = ({ mode }: { mode: BotMode }) => {
     loadingProblemSolver: false,
     messages: [],
   });
+  const [nameDraft, setNameDraft] = useState("");
+
+  // Keep the bot mode aligned with the current dashboard role.
+  useEffect(() => {
+    setState((prev) => ({ ...prev, mode }));
+  }, [mode]);
 
   // Load saved name on mount
   useEffect(() => {
     const storedName = localStorage.getItem(BOT_NAME_STORAGE_KEY);
     if (storedName) {
+      setNameDraft(storedName);
       setState((prev) => ({ ...prev, name: storedName, showWelcomeDialog: false }));
     }
   }, []);
 
-  const loadName = () => {
-    const stored = localStorage.getItem(BOT_NAME_STORAGE_KEY);
-    if (stored) {
-      setState((prev) => ({ ...prev, name: stored, showWelcomeDialog: false }));
-    }
+  const persistName = (raw: string, closeDialog: boolean) => {
+    const name = raw.trim();
+    if (!name) return;
+    localStorage.setItem(BOT_NAME_STORAGE_KEY, name);
+    setNameDraft(name);
+    setState((prev) => ({ ...prev, name, showWelcomeDialog: closeDialog ? false : prev.showWelcomeDialog }));
   };
 
   const handleNameInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const name = e.target.value.trim();
-    if (name) {
-      localStorage.setItem(BOT_NAME_STORAGE_KEY, name);
-      setState((prev) => ({ ...prev, name, showWelcomeDialog: false }));
-    }
+    setNameDraft(e.target.value);
+  };
+
+  const handleNameBlur = () => {
+    persistName(nameDraft, false);
   };
 
   const handleNameSubmit = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    const input = document.querySelector<HTMLInputElement>('input[name="botName"]');
-    const name = input?.value.trim();
-    if (name) {
-      localStorage.setItem(BOT_NAME_STORAGE_KEY, name);
-      setState((prev) => ({ ...prev, name, showWelcomeDialog: false }));
-    }
+    persistName(nameDraft, true);
   };
 
   const handleReset = () => {
@@ -224,41 +227,32 @@ const CyberNodeBot = ({ mode }: { mode: BotMode }) => {
   const renderWelcomeDialog = () => {
     return (
       <div className="cyber-welcome-dialog">
-        <div className="cyber-welcome-message">
-          {renderWelcomeMessage(state)}
+        {renderWelcomeMessage(state)}
+        <div className="cyber-name-input">
+          <input
+            type="text"
+            name="botName"
+            placeholder="Enter your name"
+            value={nameDraft}
+            onChange={handleNameInputChange}
+            onBlur={handleNameBlur}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                persistName(nameDraft, true);
+              }
+            }}
+            className="input-field"
+            autoComplete="off"
+            autoCapitalize="words"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <button className="submit-btn" onClick={handleNameSubmit} type="button">
+            Save Name
+          </button>
         </div>
-        {state.name ? (
-          <div className="cyber-name-input">
-            <input
-              type="text"
-              name="botName"
-              placeholder="Enter your name"
-              value={state.name || ""}
-              onChange={(e) => {
-                const name = e.target.value.trim();
-                if (name) {
-                  localStorage.setItem(BOT_NAME_STORAGE_KEY, name);
-                  setState((prev) => ({ ...prev, name, showWelcomeDialog: false }));
-                }
-              }}
-              className="input-field"
-            />
-            <button className="submit-btn" onClick={handleNameSubmit}>
-              Save Name
-            </button>
-          </div>
-        ) : (
-          <div className="cyber-name-input">
-            <input
-              type="text"
-              name="botName"
-              placeholder="Enter your name"
-              onChange={handleNameInputChange}
-              className="input-field"
-            />
-          </div>
-        )}
-        <button className="reset-btn" onClick={handleReset}>
+        <button className="reset-btn" onClick={handleReset} type="button">
           <XIcon size={12} /> Reset
         </button>
       </div>

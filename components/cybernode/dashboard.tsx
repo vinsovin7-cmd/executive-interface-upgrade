@@ -23,7 +23,7 @@ import { DexSwap } from "@/components/cybernode/dex-swap"
 import { ValueTracking } from "@/components/cybernode/value-tracking"
 import { MiningConsole } from "@/components/cybernode/mining-console"
 import { RewardsClaim } from "@/components/cybernode/rewards-claim"
-import { DEFAULT_TREASURY_ADDRESS } from "@/lib/mining/config"
+import { DEFAULT_TREASURY_ADDRESS, TREASURY_ANCHOR_ADDRESS } from "@/lib/mining/config"
 
 type Tab = "hub" | "wallet" | "rewards" | "analytics" | "settings"
 const navigation: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
@@ -125,8 +125,10 @@ export function Dashboard({ userId, userEmail, profileEmail, authProvider, profi
   const wallet = useTonWallet()
   const [tonConnectUI] = useTonConnectUI()
   const walletChain = wallet ? String(wallet.account.chain) : null
-  const networkLabel = walletChain === "-239" ? "MAINNET" : walletChain === "-3" ? "TESTNET" : wallet ? "NETWORK UNKNOWN" : "MAINNET TARGET"
-  const networkStatus = walletChain === "-239" ? "CONNECTED · MAINNET" : walletChain === "-3" ? "CONNECTED · TESTNET" : wallet ? "CONNECTED · UNKNOWN NETWORK" : "MAINNET TARGET · NOT CONNECTED"
+  const effectiveAddress = address || savedWalletAddress
+  const effectiveChain = walletChain ?? (savedWalletAddress ? "-239" : null)
+  const networkLabel = effectiveChain === "-239" ? "MAINNET" : effectiveChain === "-3" ? "TESTNET" : wallet ? "NETWORK UNKNOWN" : "MAINNET TARGET"
+  const networkStatus = effectiveChain === "-239" ? "CONNECTED · MAINNET" : effectiveChain === "-3" ? "CONNECTED · TESTNET" : wallet ? "CONNECTED · UNKNOWN NETWORK" : "MAINNET TARGET · NOT CONNECTED"
   const currentTitle = navigation.find((item) => item.id === tab)?.label ?? "CyberNode Hub"
 
   // TON Connect auto-close & state sync: auto-close Keeper spinner, stop infinite loading,
@@ -161,6 +163,18 @@ export function Dashboard({ userId, userEmail, profileEmail, authProvider, profi
     localStorage.setItem("dashboard_wallet_address", address)
   }, [address])
 
+  // Lock body scroll when mobile drawer is open, preventing background drag.
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.classList.add("cybernode-drawer-open")
+    } else {
+      document.body.classList.remove("cybernode-drawer-open")
+    }
+    return () => {
+      document.body.classList.remove("cybernode-drawer-open")
+    }
+  }, [mobileOpen])
+
   // Bind wallet address to value-tracking service
   const bindWalletAddress = async (_addr: string) => {
     // Binding occurs in MiningConsole's auto-bind effect, which owns the
@@ -186,7 +200,7 @@ export function Dashboard({ userId, userEmail, profileEmail, authProvider, profi
   const walletAlreadySaved = Boolean(address && (savedWalletAddress === address || walletConnections.some((item) => item.address === address)))
 
   const saveWallet = async () => {
-    if (!userId || !address || walletChain !== "-239") return
+    if (!userId || !address || walletChain !== "-239" || address === DEFAULT_TREASURY_ADDRESS || address === TREASURY_ANCHOR_ADDRESS) return
     const { error } = await createClient().from("wallet_connections").insert(
       { user_id: userId, network: "ton-mainnet", address },
     )
@@ -196,7 +210,7 @@ export function Dashboard({ userId, userEmail, profileEmail, authProvider, profi
   }
 
   useEffect(() => {
-    if (!userId || !address || walletChain !== "-239") return
+    if (!userId || !address || walletChain !== "-239" || address === DEFAULT_TREASURY_ADDRESS || address === TREASURY_ANCHOR_ADDRESS) return
     if (savedWalletAddress === address || walletConnections.some((item) => item.address === address)) return
     let cancelled = false
     void (async () => {
@@ -218,10 +232,10 @@ export function Dashboard({ userId, userEmail, profileEmail, authProvider, profi
   }
 
   const content = () => {
-    if (section === 2) return <EdgeComputeSection networkLabel={networkLabel} walletAddress={walletChain === "-239" ? address : null} userId={userId} onSignIn={() => setAuthOpen(true)}/>
+    if (section === 2) return <EdgeComputeSection networkLabel={networkLabel} walletAddress={effectiveChain === "-239" ? effectiveAddress : null} userId={userId} onSignIn={() => setAuthOpen(true)}/>
     if (tab === "wallet") return <div className="page-stack">
-      <MiningConsole userId={userId} walletAddress={walletChain === "-239" ? address : null} onSignIn={() => setAuthOpen(true)}/>
-      <LiveTonTelemetry walletAddress={walletChain === "-239" ? address : null} userId={userId} onSignIn={() => setAuthOpen(true)}/>
+      <MiningConsole userId={userId} walletAddress={effectiveChain === "-239" ? effectiveAddress : null} onSignIn={() => setAuthOpen(true)}/>
+      <LiveTonTelemetry walletAddress={effectiveChain === "-239" ? effectiveAddress : null} userId={userId} onSignIn={() => setAuthOpen(true)}/>
       <section className="notice-card"><ShieldCheck size={18}/><div><strong>Real on-chain settlement</strong><p>Your bound wallet receives real TON Mainnet payouts — TON natively, GRAM and USDT as jettons — signed by the treasury signer that controls the configured treasury address. The 600-second accumulation gate and the 30% user / 70% treasury split apply to every credited reward.</p></div></section>
       <DexSwap walletChain={walletChain}/>
       <div className="wallet-grid"><section className="panel balance-panel"><span className="eyebrow">ON-CHAIN BALANCE</span><div className="balance-amount">Live <small>DATA</small></div><p>Read-only TON and GRAM / GRM balances are shown in the Mainnet telemetry panel.</p><div className="balance-divider"/><div className="wallet-detail"><span>Connected wallet</span><strong>{address ? `${address.slice(0, 6)}…${address.slice(-5)}` : "Not connected"}</strong></div><div className="wallet-detail"><span>Network</span><strong>{networkStatus}</strong></div><div className="saved-wallets"><strong>Saved TON wallets</strong>{walletConnections.length ? walletConnections.map((item) => <span key={item.id}>{item.address.slice(0, 8)}…{item.address.slice(-6)} <small>{item.network}</small></span>) : <span>No wallets saved to this account.</span>}{userId && address && walletChain === "-239" && !walletAlreadySaved && <button type="button" className="save-wallet-action" onClick={saveWallet}><Wallet size={14}/> Save connected mainnet wallet</button>}{walletAlreadySaved && <span className="saved-confirmation"><CheckCircle2 size={13}/> Wallet saved</span>}{walletSaveMessage && <span className="wallet-save-message" role="status">{walletSaveMessage}</span>}</div><button className="disabled-action" disabled><ArrowUpRight size={16}/> Claim & withdraw <span>Use the suite above</span></button><p className="button-help">One-click withdrawal runs from the private mining suite above, using your bound Tonkeeper wallet and the configured treasury signer.</p></section>
@@ -229,7 +243,7 @@ export function Dashboard({ userId, userEmail, profileEmail, authProvider, profi
       <section className="panel"><div className="panel-header"><div><span className="eyebrow">PAYOUT HISTORY</span><h3>On-chain transaction ledger</h3></div><span className="sample-tag">TONVIEWER VERIFIABLE</span></div><div className="empty-ledger"><div className="empty-ledger-icon"><ArrowDownLeft size={18}/></div><strong>Payouts appear here after broadcast</strong><span>Every broadcast payout stores its real TON transaction hash and a direct Tonviewer link, also shown in the private mining suite above.</span></div></section>
     </div>
 
-    if (tab === "rewards") return <div className="page-stack"><section className="notice-card"><Sparkles size={18}/><div><strong>Verified ad rewards</strong><p>AdsGram callbacks are verified with the shared secret, then credited through the split engine (30% user / 70% treasury) with a per-minute event key so provider retries cannot replay a claim.</p></div></section><RewardsClaim userId={userId} walletAddress={walletChain === "-239" ? address : null} onSignIn={() => setAuthOpen(true)}/><MiningConsole userId={userId} walletAddress={walletChain === "-239" ? address : null} onSignIn={() => setAuthOpen(true)}/><AdsgramRewards userId={userId} onSignIn={() => setAuthOpen(true)}/><ValueTracking userId={userId} walletAddress={walletChain === "-239" ? address : null} onSignIn={() => setAuthOpen(true)}/></div>
+    if (tab === "rewards") return <div className="page-stack"><section className="notice-card"><Sparkles size={18}/><div><strong>Verified ad rewards</strong><p>AdsGram callbacks are verified with the shared secret, then credited through the split engine (30% user / 70% treasury) with a per-minute event key so provider retries cannot replay a claim.</p></div></section><RewardsClaim userId={userId} walletAddress={effectiveChain === "-239" ? effectiveAddress : null} onSignIn={() => setAuthOpen(true)}/><MiningConsole userId={userId} walletAddress={effectiveChain === "-239" ? effectiveAddress : null} onSignIn={() => setAuthOpen(true)}/><AdsgramRewards userId={userId} onSignIn={() => setAuthOpen(true)}/><ValueTracking userId={userId} walletAddress={effectiveChain === "-239" ? effectiveAddress : null} onSignIn={() => setAuthOpen(true)}/></div>
 
     if (tab === "settings") return <div className="page-stack">{accountTelemetry}<TelegramAccountLink userId={userId}/><OwnerVaultSettings isAdmin={isAdmin}/></div>
 
@@ -237,10 +251,10 @@ export function Dashboard({ userId, userEmail, profileEmail, authProvider, profi
 
     return <>
       <section className="hero-card"><div className="hero-copy"><div className="section-kicker"><span className="pulse-dot"/> MAINNET SETUP <span className="kicker-line"/></div><h2>Real network.<br/><span>Verified values only.</span></h2><p>Bind your Tonkeeper wallet to activate a real-time mining session. Rewards accrue against your 30% share, withdrawals unlock after a 600-second accumulation gate, and payouts settle on-chain to your bound wallet.</p><div className="hero-actions"><span className="hero-note"><ShieldCheck size={14}/> No fabricated activity</span><span className="network-pill"><span className={`status-light ${walletChain === "-239" ? "active" : "muted"}`}/> TON {networkLabel}</span></div></div><RadarVisual networkLabel={networkLabel}/><div className="hero-bottom"><div><span className="micro-label">MINING SESSION</span><strong><span className={`status-light ${walletChain === "-239" ? "active" : "muted"}`}/>ACTIVATION ON BIND</strong></div><div><span className="micro-label">CONNECTED WALLET</span><strong>{address ? `${address.slice(0, 6)}…${address.slice(-5)}` : "NONE"}</strong></div><div><span className="micro-label">PAYOUT ENGINE</span><strong><span className="status-light active"/>TREASURY-SIGNED</strong></div><span className="hero-id mono">MAINNET</span></div></section>
-      <MiningConsole userId={userId} walletAddress={walletChain === "-239" ? address : null} onSignIn={() => setAuthOpen(true)}/>
-      <SolarEnergyModule userId={userId} walletAddress={savedWalletAddress} miningWalletAddress={walletChain === "-239" ? address : null} sessionStartedAt={lastSignInAt} />
-      <LiveTonTelemetry walletAddress={walletChain === "-239" ? address : null} userId={userId} onSignIn={() => setAuthOpen(true)}/>
-      <SessionMiningTelemetry userId={userId} walletAddress={walletChain === "-239" ? address : null}/>
+      <MiningConsole userId={userId} walletAddress={effectiveChain === "-239" ? effectiveAddress : null} onSignIn={() => setAuthOpen(true)}/>,
+        <SolarEnergyModule userId={userId} walletAddress={savedWalletAddress} miningWalletAddress={effectiveChain === "-239" ? effectiveAddress : null} sessionStartedAt={lastSignInAt} />
+      <LiveTonTelemetry walletAddress={effectiveChain === "-239" ? effectiveAddress : null} userId={userId} onSignIn={() => setAuthOpen(true)}/>
+      <SessionMiningTelemetry userId={userId} walletAddress={effectiveChain === "-239" ? effectiveAddress : null}/>
       <div className="readiness-list"><ReadinessCard icon={Wallet} title="Tonkeeper / TON wallet" detail={address ? "Wallet session connected" : "Connect with the real TonConnect wallet picker"} status={address ? "CONNECTED" : "READY"}/><ReadinessCard icon={Blocks} title="GRAM / GRM token master" detail="Toncenter indexes the supplied Mainnet master; this is not an independent audit." status="INDEXED"/><ReadinessCard icon={ShieldCheck} title="Treasury settlement" detail="Payouts are signed by the treasury signer that controls the configured treasury wallet." status="TREASURY-SIGNED"/><ReadinessCard icon={Activity} title="On-chain indexer" detail="Toncenter API v3 returns current Mainnet masterchain data." status="LIVE · READ ONLY"/></div>
       <div className="readiness-list"><ReadinessCard icon={Gauge} title="Session mining" detail="Real-time accrual starts the moment a wallet is bound to your account." status="LIVE ON BIND"/><ReadinessCard icon={Blocks} title="Verified rewards" detail="Task, session, and AdsGram rewards credit your 30% share; the 70% treasury share is retained." status="30 / 70 SPLIT"/></div>
       <div className="readiness-footer"><CircleHelp size={14}/><span>Real payouts require GRAM jetton liquidity plus TON gas at the treasury address, and the server-side treasury signer mnemonic (TON_TREASURY_SIGNER_MNEMONIC) that controls it. Without those, mining and accrual still run and the payout engine reports exactly what is missing.</span></div>
