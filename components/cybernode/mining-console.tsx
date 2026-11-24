@@ -354,7 +354,7 @@ export function MiningConsole({
           <h3 id="mining-console-title">Private mining suite</h3>
         </div>
         <span className="sample-tag" aria-live="polite">
-          {isLoading ? "SYNCING" : mining?.walletAddress ? (is7RainbowUnlocked ? "7-RAINBOW UNLOCKED" : unlocked ? "MINING · ACTIVE" : "MINING · ACCRUING") : "WALLET NOT BOUND"}
+          {!walletAddress ? "WALLET NOT BOUND" : isLoading ? "SYNCING" : autoBinding ? "BINDING…" : is7RainbowUnlocked ? "7-RAINBOW UNLOCKED" : unlocked ? "MINING · ACTIVE" : mining?.walletAddress ? "MINING · ACCRUING" : "CONNECTED · AWAITING UNLOCK"}
         </span>
       </div>
 
@@ -518,7 +518,7 @@ export function MiningConsole({
                   {treasury.configured ? (treasury.liquidityReady ? "TREASURY LIQUID · READY" : "TREASURY UNFUNDED") : "SIGNER NOT CONFIGURED"}
                 </span>
               ) : (
-                <span className="mining-badge is-warn"><AlertTriangle size={13} /> STATUS UNAVAILABLE</span>
+                <span className="mining-badge"><Clock size={13} /> LOADING TREASURY STATE</span>
               )}
             </div>
             <p className="muted-copy">
