@@ -51,9 +51,10 @@ export function tonviewerAddressUrl(address: string) {
   return `https://tonviewer.com/${encodeURIComponent(address)}`
 }
 
-export function formatAtomic(value: string, decimals: number) {
-  const negative = value.startsWith("-")
-  const digits = (negative ? value.slice(1) : value).replace(/^\+/, "").padStart(decimals + 1, "0")
+export function formatAtomic(value: string | number | null | undefined, decimals: number) {
+  const str = String(value ?? "")
+  const negative = str.startsWith("-")
+  const digits = (negative ? str.slice(1) : str).replace(/^\+/, "").padStart(decimals + 1, "0")
   const whole = digits.slice(0, -decimals) || "0"
   const fraction = digits.slice(-decimals).replace(/0+$/, "")
   return `${negative ? "-" : ""}${fraction ? `${whole}.${fraction}` : whole}`

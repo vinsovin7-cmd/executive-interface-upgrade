@@ -159,7 +159,7 @@ export function DexSwap({ walletChain }: { walletChain: string | null }) {
       {ready && quoteRequest && !quote && !quoteError && <p className="dex-status" role="status"><RefreshCw size={13}/> Requesting a live route…</p>}
       {quote && <p className="dex-quote" role="status"><ShieldCheck size={14}/> Live route available · {amount} {from} → {receive} {to}</p>}
       <button className="dex-submit" type="button" onClick={executeSwap} disabled={!quote || isSubmitting || !wallet || !isSwapQuote(quote)}>{isSubmitting ? "Waiting for wallet…" : quote ? "Review transaction in wallet" : "Waiting for live quote"}</button>
-      {message && <p className="dex-status" role="status">{message} {message.startsWith("Wallet returned") && <a href={`https://tonviewer.com/${encodeURIComponent(walletAddress)}`} target="_blank" rel="noreferrer">Open wallet activity <ExternalLink size={12}/></a>}</p>}
+      {message && typeof message === "string" && <p className="dex-status" role="status">{message} {message.startsWith("Wallet returned") && <a href={`https://tonviewer.com/${encodeURIComponent(walletAddress)}`} target="_blank" rel="noreferrer">Open wallet activity <ExternalLink size={12}/></a>}</p>}
       <p className="dex-disclaimer">GRAM master address comes from this app&apos;s configured indexer and is not independently audited. Confirm the token and transaction details in your wallet; never treat a wallet response as proof of settlement.</p>
     </section>
   )

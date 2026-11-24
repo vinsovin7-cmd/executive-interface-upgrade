@@ -29,7 +29,7 @@ const renderWelcomeMessage = (state: BotState) => {
   if (state.name) {
     return (
       <div className="cyber-welcome-message">
-        Alright {state.name.startsWith("Mr.") || state.name.startsWith("Ms.") || state.name.startsWith("Dr.") ? state.name : state.name}. Let me know how I can help you today.
+        Alright {typeof state.name === "string" && (state.name.startsWith("Mr.") || state.name.startsWith("Ms.") || state.name.startsWith("Dr.")) ? state.name : state.name}. Let me know how I can help you today.
       </div>
     );
   }

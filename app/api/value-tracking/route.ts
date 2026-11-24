@@ -203,8 +203,8 @@ export async function POST(request: Request) {
   } catch (error) {
     const invalidInput = error instanceof Error && (
       error.message === "Enter a valid TON wallet address."
-      || error.message.startsWith("Enter a positive amount")
-      || error.message.startsWith("This asset supports")
+      || (typeof error.message === "string" && error.message.startsWith("Enter a positive amount"))
+      || (typeof error.message === "string" && error.message.startsWith("This asset supports"))
     )
     // Surface the real cause (insufficient balance, unlock not reached, missing
     // treasury/signer configuration, RPC error) instead of a dead-end generic
