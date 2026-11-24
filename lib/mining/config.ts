@@ -43,6 +43,10 @@ export function tonviewerTransactionUrl(hash: string) {
   return `https://tonviewer.com/transaction/${encodeURIComponent(hash)}`
 }
 
+export function tonscanTransactionUrl(hash: string) {
+  return `https://tonscan.org/tx/${encodeURIComponent(hash)}`
+}
+
 export function tonviewerAddressUrl(address: string) {
   return `https://tonviewer.com/${encodeURIComponent(address)}`
 }

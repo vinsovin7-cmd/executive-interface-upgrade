@@ -7,7 +7,7 @@ import {
   Lock, Megaphone, Share2, ShieldCheck, SkipForward, Sparkles, Unlock, Wallet, X, Zap,
 } from "lucide-react"
 import {
-  ASSET_DECIMALS, ASSET_MINIMUMS, MINIMUM_ACCUMULATION_SECONDS, UNLOCK_THRESHOLD_SECONDS, formatAtomic, percentLabel, tonviewerAddressUrl, tonviewerTransactionUrl,
+  ASSET_DECIMALS, ASSET_MINIMUMS, MINIMUM_ACCUMULATION_SECONDS, UNLOCK_THRESHOLD_SECONDS, formatAtomic, percentLabel, tonviewerAddressUrl, tonviewerTransactionUrl, tonscanTransactionUrl,
 } from "@/lib/mining/config"
 import { readAdCadence, startAdCycle, type AdCadenceState } from "@/lib/monetization/ad-cadence"
 import { createShareableReceipt, generateReferralUrl } from "@/lib/monetization/shareable-receipt"
@@ -78,6 +78,11 @@ function formatCountdown(totalSeconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
 }
 
+function formatBalance(b: Balance) {
+  const decimals = ASSET_DECIMALS[b.asset_code] ?? 9
+  return `${formatAtomic(b.available_atomic, decimals)} ${b.asset_code}`
+}
+
 export function MiningConsole({
   userId,
   walletAddress,
@@ -89,9 +94,10 @@ export function MiningConsole({
 }) {
   const trackingKey = userId ? "/api/value-tracking" : null
   const { data, error, isLoading, mutate } = useSWR<ValueTracking>(trackingKey, getJson, {
-    refreshInterval: 12_000,
+    refreshInterval: 8_000,
     dedupingInterval: 8_000,
     revalidateOnFocus: true,
+    keepPreviousData: true,
   })
   const { data: state, mutate: mutateState } = useSWR<MiningStateResponse>(userId ? "/api/mining/state" : null, getJson, {
     refreshInterval: 30_000,
@@ -156,6 +162,19 @@ export function MiningConsole({
   const unlocked = Boolean(mining && mining.walletAddress && secondsRemaining <= 0)
   const is7RainbowUnlocked = Boolean(mining && mining.walletAddress && rainbowElapsedSeconds >= UNLOCK_THRESHOLD_SECONDS)
   const progress = Math.min(100, Math.round((elapsedSeconds / minimumSeconds) * 100))
+
+  // Live withdrawable balance: the first asset whose available amount clears
+  // the minimum withdrawal floor. Re-evaluated every tick so the prominent
+  // WITHDRAW TO KEEPER action always shows a real, current amount.
+  const withdrawable = useMemo(() => {
+    if (!mining?.walletAddress || !unlocked) return null
+    for (const b of data?.balances ?? []) {
+      const available = Number(b.available_atomic)
+      const minimum = Number(b.minimum_withdrawal_atomic || (ASSET_MINIMUMS[b.asset_code] ?? "0"))
+      if (available > 0 && available >= minimum) return b
+    }
+    return null
+  }, [data?.balances, mining?.walletAddress, unlocked])
 
   const bindWallet = async () => {
     if (!walletAddress) return
@@ -435,6 +454,27 @@ export function MiningConsole({
             </div>
           )}
 
+          {is7RainbowUnlocked && withdrawable && (
+            <div className="mining-unlock-banner">
+              <div className="mining-unlock-copy">
+                <span className="mining-unlock-kicker"><Sparkles size={12} /> UNLOCKED · READY</span>
+                <strong>Withdraw to Keeper</strong>
+                <span className="mining-unlock-amount mono">{formatBalance(withdrawable)}</span>
+                <small>Real treasury-signed {withdrawable.asset_code} settlement to your bound wallet</small>
+              </div>
+              <button
+                type="button"
+                className="mining-primary mining-withdraw-banner"
+                disabled={busy === withdrawable.asset_code}
+                onClick={() => withdrawAll(withdrawable)}
+                title={`Withdraw ${formatBalance(withdrawable)} to Keeper`}
+              >
+                {busy === withdrawable.asset_code ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
+                {busy === withdrawable.asset_code ? "Sending…" : "WITHDRAW TO KEEPER"}
+              </button>
+            </div>
+          )}
+
           <div className="mining-treasury">
             <div className="mining-treasury-head">
               <span className="eyebrow"><Megaphone size={12} /> 30-MINUTE ENGAGEMENT CYCLE</span>
@@ -538,7 +578,10 @@ export function MiningConsole({
               <div>
                 <strong>On-chain {receipt.assetCode} payout broadcast</strong>
                 <code className="mono">{receipt.transactionHash}</code>
-                <a href={receipt.tonviewerUrl} target="_blank" rel="noreferrer">Inspect on Tonviewer <ExternalLink size={12} /></a>
+                <div className="mining-receipt-actions">
+                  <a href={receipt.tonviewerUrl} target="_blank" rel="noreferrer">Inspect on Tonviewer <ExternalLink size={12} /></a>
+                  <a href={tonscanTransactionUrl(receipt.transactionHash)} target="_blank" rel="noreferrer">Inspect on Tonscan <ExternalLink size={12} /></a>
+                </div>
               </div>
               {shareReceipt && (
                 <div className="mining-share-receipt" role="status">
@@ -549,7 +592,10 @@ export function MiningConsole({
                     </button>
                   </div>
                   <pre className="mining-share-text mono">{shareReceipt.message}</pre>
-                  <a href={shareReceipt.tonviewerUrl} target="_blank" rel="noreferrer">Verify on Tonviewer <ExternalLink size={11} /></a>
+                  <div className="mining-receipt-actions">
+                    <a href={shareReceipt.tonviewerUrl} target="_blank" rel="noreferrer">Verify on Tonviewer <ExternalLink size={11} /></a>
+                    <a href={tonscanTransactionUrl(shareReceipt.transactionHash)} target="_blank" rel="noreferrer">Verify on Tonscan <ExternalLink size={11} /></a>
+                  </div>
                 </div>
               )}
             </div>

@@ -629,7 +629,29 @@ body.cybernode-drawer-open { overflow:hidden !important; touch-action:none; }
 /* Smooth mobile scroll for collapsible content */
 .collapsible-panel { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 
-/* Display toggle button for indexed mainnet activity */
+/* Mining unlock banner — prominent UNLOCKED · READY signal with live amount */
+.mining-unlock-banner {
+  position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0; padding: 14px 16px; border: 1px solid #2f6a52; border-radius: 9px; background: linear-gradient(155deg, #0b1a24, #0a131a); color: #dff9ec;
+}
+.mining-unlock-banner.is-rainbow { border-color: #a98bea; box-shadow: 0 0 24px rgba(169, 139, 234, .18); }
+.mining-unlock-icon { width: 28px; height: 28px; border-radius: 8px; background: #0f2a22; color: #8ff0bb; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }
+.mining-unlock-banner.is-rainbow .mining-unlock-icon { background: rgba(169, 139, 234, .15); color: #c7adf2; animation: rainbowShimmerSlow 4s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .mining-unlock-banner.is-rainbow .mining-unlock-icon { animation: none; } }
+.mining-unlock-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mining-unlock-copy .eyebrow { text-transform: uppercase; letter-spacing: 1px; font: 700 8px var(--font-mono); color: #8fe4cf; }
+.mining-unlock-copy strong { color: #dff9ec; font-size: 13px; font-weight: 700; }
+.mining-unlock-banner .mining-withdraw-primary { flex-shrink: 0; min-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 680px) {
+  .mining-unlock-banner { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .mining-unlock-banner .mining-withdraw-primary { width: 100%; white-space: normal; }
+}
+
+/* Receipt-link flex row for Tonviewer + Tonscan */
+.mining-receipt-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.mining-receipt-actions a { color: #8fe4cf; font-size: 9px; text-decoration: none; }
+.mining-receipt-actions a:hover { text-decoration: underline; }
+
+/* Compact mini-assistant panel styles (Issue 4) */
 .display-toggle-btn {
   background: transparent;
   border: 1px solid #242f3b;
