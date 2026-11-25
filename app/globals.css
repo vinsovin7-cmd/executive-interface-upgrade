@@ -289,6 +289,20 @@
 .value-tx-link { color:#7fd9cc; text-decoration:none; }
 .value-tx-link:hover { text-decoration:underline; }
 @media (max-width:680px) { .mining-console { padding:16px; }.mining-metrics { grid-template-columns:1fr; }.mining-bind-row { flex-direction:column; align-items:stretch; }.mining-bind-row .mining-primary { width:100%; }.mining-history-row { flex-wrap:wrap; } }
+
+/* Automatic GRAM settlement banner — 20-minute (1200s) auto-payout */
+.mining-auto-payout { position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0;padding:14px 16px;border:1px solid #2f6a52;border-radius:9px;background:linear-gradient(155deg,#0b1a24,#0a131a);color:#dff9ec; }
+.mining-auto-payout.is-rainbow { border-color:#a98bea;box-shadow:0 0 24px rgba(169,139,234,.18); }
+.mining-auto-payout-icon { width:28px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:14px; }
+.mining-auto-payout.is-rainbow .mining-auto-payout-icon { background:rgba(169,139,234,.15);color:#c7adf2;animation:rainbowShimmerSlow 4s linear infinite; }
+@media (prefers-reduced-motion:reduce) { .mining-auto-payout.is-rainbow .mining-auto-payout-icon { animation:none; } }
+.mining-auto-payout-copy { display:flex;flex-direction:column;gap:2px;min-width:0; }
+.mining-auto-payout-kicker { text-transform:uppercase;letter-spacing:1px;font:700 8px var(--font-mono);color:#8fe4cf; }
+.mining-auto-payout strong { color:#dff9ec;font-size:13px;font-weight:700; }
+.mining-auto-payout-hash { flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#a8efe4;font:600 8px var(--font-mono);letter-spacing:.3px; }
+.mining-auto-payout-actions { display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px; }
+.mining-receipt-action { color:#8fe4cf;font-size:9px;text-decoration:none; }
+.mining-receipt-action:hover { text-decoration:underline; }
 .auth-mode-tab:focus-visible { outline:2px solid #66d7c8; outline-offset:2px; }
 .auth-mode-tab:disabled { cursor:wait; opacity:.7; }
 @media (max-width:768px) {

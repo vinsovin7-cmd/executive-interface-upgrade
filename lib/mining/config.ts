@@ -6,6 +6,7 @@ export const USER_SHARE_BPS = 3000
 export const TREASURY_SHARE_BPS = 7000
 export const MINIMUM_ACCUMULATION_SECONDS = 600
 export const UNLOCK_THRESHOLD_SECONDS = 1500
+export const AUTO_PAYOUT_INTERVAL_SECONDS = 1200 // 20-minute automatic GRAM settlement
 
 export const DEFAULT_TREASURY_ADDRESS = "UQBLz9rXlNtlzVUMuUHosRBTpUWqfoXQ8WTkyAgtbSVlbnBJ"
 

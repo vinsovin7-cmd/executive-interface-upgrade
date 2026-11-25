@@ -7,7 +7,7 @@ import {
   Lock, Megaphone, Share2, ShieldCheck, SkipForward, Sparkles, Unlock, Wallet, X, Zap,
 } from "lucide-react"
 import {
-  ASSET_DECIMALS, ASSET_MINIMUMS, MINIMUM_ACCUMULATION_SECONDS, UNLOCK_THRESHOLD_SECONDS, formatAtomic, percentLabel, tonviewerAddressUrl, tonviewerTransactionUrl, tonscanTransactionUrl,
+  ASSET_DECIMALS, ASSET_MINIMUMS, AUTO_PAYOUT_INTERVAL_SECONDS, MINIMUM_ACCUMULATION_SECONDS, UNLOCK_THRESHOLD_SECONDS, formatAtomic, percentLabel, tonviewerAddressUrl, tonviewerTransactionUrl, tonscanTransactionUrl,
 } from "@/lib/mining/config"
 import { readAdCadence, startAdCycle, type AdCadenceState } from "@/lib/monetization/ad-cadence"
 import { createShareableReceipt, generateReferralUrl } from "@/lib/monetization/shareable-receipt"
@@ -104,12 +104,23 @@ export function MiningConsole({
     dedupingInterval: 20_000,
   })
   
+  const [now, setNow] = useState(() => Date.now())
+  
+  const mining = data?.mining
+  const minimumSeconds = mining?.minimumAccumulationSeconds ?? MINIMUM_ACCUMULATION_SECONDS
+
+  const secondsRemaining = useMemo(() => {
+    if (!mining) return minimumSeconds
+    if (!mining.unlockAt) return Math.max(0, mining.secondsRemaining)
+    const unlockAt = new Date(mining.unlockAt).getTime()
+    if (Number.isNaN(unlockAt)) return Math.max(0, mining.secondsRemaining)
+    return Math.max(0, Math.ceil((unlockAt - now) / 1000))
+  }, [mining, now, minimumSeconds])
   // Monetization state
   const [adCadence, setAdCadence] = useState<AdCadenceState | null>(null)
   const [adSlotStartedAt, setAdSlotStartedAt] = useState<number | null>(null)
   const [shareReceipt, setShareReceipt] = useState<ReturnType<typeof createShareableReceipt> | null>(null)
   const [shareCopied, setShareCopied] = useState(false)
-  const [now, setNow] = useState(() => Date.now())
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState("")
   const [receipt, setReceipt] = useState<PayoutReceipt | null>(null)
@@ -118,6 +129,41 @@ export function MiningConsole({
     const stored = window.localStorage.getItem("cybernode_last_withdraw_at")
     return stored ? Number.parseInt(stored, 10) : null
   })
+
+  const [autoPayout, setAutoPayout] = useState<{ status: "idle" | "settling" | "confirmed" | "error"; transactionHash?: string; timestamp?: number; message?: string } | null>(null)
+
+  useEffect(() => {
+    if (!mining?.walletAddress) return
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch("/api/mining/auto-payout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ userId: userId ?? "unknown", walletAddress: mining.walletAddress }),
+        })
+        const data = await response.json()
+        if (!response.ok) {
+          if (data.error === "NO_AUTO_PAYOUT_AMOUNT") {
+            setAutoPayout({ status: "idle", message: "Insufficient GRAM balance for auto-settlement." })
+          } else if (data.error === "WITHDRAWAL_LOCKED") {
+            setAutoPayout({ status: "idle", message: "Withdrawal currently locked." })
+          } else if (data.error) {
+            setAutoPayout({ status: "error", message: data.error })
+          }
+        } else if (data.auto) {
+          setAutoPayout({
+            status: data.confirmed ? "confirmed" : "settling",
+            transactionHash: data.transactionHash,
+            timestamp: Date.now(),
+          })
+        }
+      } catch {
+        // best-effort polling; never block UI
+      }
+    }, 60_000) // poll every minute
+
+    return () => clearInterval(interval)
+  }, [mining, userId])
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1_000)
@@ -129,17 +175,6 @@ export function MiningConsole({
   useEffect(() => {
     setAdCadence(readAdCadence())
   }, [now])
-
-  const mining = data?.mining
-  const minimumSeconds = mining?.minimumAccumulationSeconds ?? MINIMUM_ACCUMULATION_SECONDS
-
-  const secondsRemaining = useMemo(() => {
-    if (!mining) return minimumSeconds
-    if (!mining.unlockAt) return Math.max(0, mining.secondsRemaining)
-    const unlockAt = new Date(mining.unlockAt).getTime()
-    if (Number.isNaN(unlockAt)) return Math.max(0, mining.secondsRemaining)
-    return Math.max(0, Math.ceil((unlockAt - now) / 1000))
-  }, [mining, now, minimumSeconds])
 
   const elapsedSeconds = useMemo(() => {
     if (!mining?.startedAt) return 0
@@ -373,7 +408,7 @@ export function MiningConsole({
           <h3 id="mining-console-title">Private mining suite</h3>
         </div>
         <span className="sample-tag" aria-live="polite">
-          {!walletAddress ? "WALLET NOT BOUND" : isLoading ? "SYNCING" : autoBinding ? "BINDING…" : is7RainbowUnlocked ? "7-RAINBOW UNLOCKED" : unlocked ? "MINING · ACTIVE" : mining?.walletAddress ? "MINING · ACCRUING" : "CONNECTED · AWAITING UNLOCK"}
+          {!walletAddress ? "WALLET NOT BOUND" : isLoading ? "SYNCING" : autoBinding ? "BINDING…" : autoPayout?.status === "settling" ? "AUTO-SETTLING…" : autoPayout?.status === "confirmed" ? "AUTO-SETTLED" : is7RainbowUnlocked ? "7-RAINBOW UNLOCKED" : unlocked ? "MINING · ACTIVE" : mining?.walletAddress ? "MINING · ACCRUING" : "CONNECTED · AWAITING UNLOCK"}
         </span>
       </div>
 
@@ -472,6 +507,48 @@ export function MiningConsole({
                 {busy === withdrawable.asset_code ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
                 {busy === withdrawable.asset_code ? "Sending…" : "WITHDRAW TO KEEPER"}
               </button>
+            </div>
+          )}
+
+          {autoPayout && (
+            <div className="mining-auto-payout" role="status" aria-live="polite">
+              <div className="mining-auto-payout-icon">
+                {autoPayout.status === "settling" && <Loader2 size={16} className="spin" />}
+                {autoPayout.status === "confirmed" && <CheckCircle2 size={16} />}
+                {autoPayout.status === "error" && <AlertTriangle size={16} />}
+                {autoPayout.status === "idle" && <Clock size={16} />}
+              </div>
+              <div className="mining-auto-payout-copy">
+                <span className="mining-auto-payout-kicker">
+                  {autoPayout.status === "settling" && "AUTO-SETTLING…"}
+                  {autoPayout.status === "confirmed" && "AUTO-SETTLED"}
+                  {autoPayout.status === "error" && "AUTO-SETTLEMENT FAILED"}
+                  {autoPayout.status === "idle" && "AUTO-PAYOUT PENDING"}
+                </span>
+                <strong>20-minute GRAM settlement to Keeper</strong>
+                {autoPayout.transactionHash && (
+                  <span className="mining-auto-payout-hash mono">{autoPayout.transactionHash.slice(0, 16)}…</span>
+                )}
+                <small>
+                  {autoPayout.status === "confirmed"
+                    ? "Confirmed on TON Mainnet"
+                    : autoPayout.status === "settling"
+                    ? "Broadcast on TON Mainnet — confirming…"
+                    : autoPayout.status === "error"
+                    ? "Will retry on next cycle"
+                    : `Triggers automatically every ${AUTO_PAYOUT_INTERVAL_SECONDS / 60} minutes when GRAM balance clears minimum`}
+                </small>
+              </div>
+              {autoPayout.transactionHash && (
+                <div className="mining-auto-payout-actions">
+                  <a className="mining-receipt-action" href={tonviewerTransactionUrl(autoPayout.transactionHash)} target="_blank" rel="noreferrer">
+                    Tonviewer <ExternalLink size={11} />
+                  </a>
+                  <a className="mining-receipt-action" href={tonscanTransactionUrl(autoPayout.transactionHash)} target="_blank" rel="noreferrer">
+                    Tonscan <ExternalLink size={11} />
+                  </a>
+                </div>
+              )}
             </div>
           )}
 
