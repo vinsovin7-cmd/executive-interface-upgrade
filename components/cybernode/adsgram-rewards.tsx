@@ -15,6 +15,8 @@ declare global {
         initData: string
         ready: () => void
         expand: () => void
+        expandViewport?: () => void
+        openTelegramLink?: (url: string) => void
       }
     }
   }

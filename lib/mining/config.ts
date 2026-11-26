@@ -8,7 +8,9 @@ export const MINIMUM_ACCUMULATION_SECONDS = 600
 export const UNLOCK_THRESHOLD_SECONDS = 1500
 export const AUTO_PAYOUT_INTERVAL_SECONDS = 1200 // 20-minute automatic GRAM settlement
 
-export const DEFAULT_TREASURY_ADDRESS = "UQBLz9rXlNtlzVUMuUHosRBTpUWqfoXQ8WTkyAgtbSVlbnBJ"
+// Treasury address is configured via environment variables only — no hardcoded fallback.
+export const DEFAULT_TREASURY_ADDRESS: string =
+  (typeof process !== 'undefined' ? process.env.MASTER_TREASURY_ADDRESS?.trim() ?? process.env.NEXT_PUBLIC_TREASURY_ADDRESS?.trim() : undefined) ?? ''
 
 // Treasury collection/refill anchor. This is the collection wallet rewards and
 // gas are refilled from; it is referenced by the claim guardrails and surfaced
